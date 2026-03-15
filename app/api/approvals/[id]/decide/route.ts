@@ -1,124 +1,113 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextResponse } from 'next/server'
+// app/api/approvals/[id]/decide/route.ts
 
-interface DecideRequest {
-  decision: 'approved' | 'rejected'
-  notes?: string
+import { NextRequest, NextResponse } from "next/server";
+import { resumeDamageReportAgent } from "@/lib/agent/run";
+import { adminSupabase } from "@/lib/supabase/admin";
+
+// ─── Request Body Schema ──────────────────────────────────────────────────────
+
+interface DecideRequestBody {
+  decision: "approved" | "rejected";
+  notes?: string;
 }
 
+// ─── POST /api/approvals/[id]/decide ─────────────────────────────────────────
+
 export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: { id: string } }
 ) {
+  const approvalRequestId = params.id;
+
+  // 1. Body parsen
+  let body: DecideRequestBody;
   try {
-    const { id } = await params
-    const body = (await request.json()) as DecideRequest
+    body = await request.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Ungültiger Request Body" },
+      { status: 400 }
+    );
+  }
 
-    if (!body.decision || !['approved', 'rejected'].includes(body.decision)) {
-      return NextResponse.json(
-        { error: 'Invalid decision. Must be "approved" or "rejected".' },
-        { status: 400 }
-      )
-    }
+  const { decision, notes = null } = body;
 
-    const supabase = await createClient()
+  if (decision !== "approved" && decision !== "rejected") {
+    return NextResponse.json(
+      { error: "decision muss 'approved' oder 'rejected' sein" },
+      { status: 400 }
+    );
+  }
 
-    // Get current user
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+  // 2. approval_request laden — brauchen agent_run_id
+  const { data: approvalRequest, error: fetchError } = await adminSupabase
+    .from("approval_requests")
+    .select("id, status, agent_run_id")
+    .eq("id", approvalRequestId)
+    .single();
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (fetchError || !approvalRequest) {
+    return NextResponse.json(
+      { error: `approval_request nicht gefunden: ${approvalRequestId}` },
+      { status: 404 }
+    );
+  }
 
-    // Check user role - only property_manager or admin can approve
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+  // 3. Guard: nur pending requests können entschieden werden
+  if (approvalRequest.status !== "pending") {
+    return NextResponse.json(
+      {
+        error: `approval_request ist bereits entschieden: status=${approvalRequest.status}`,
+      },
+      { status: 409 }
+    );
+  }
 
-    if (!profile || !['property_manager', 'admin'].includes(profile.role)) {
-      return NextResponse.json(
-        { error: 'Only property managers and admins can approve requests' },
-        { status: 403 }
-      )
-    }
+  // 4. approval_request aktualisieren
+  const { error: updateError } = await adminSupabase
+    .from("approval_requests")
+    .update({
+      status: decision,
+      notes: notes ?? null,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", approvalRequestId);
 
-    // Fetch the approval request
-    const { data: approvalRequest, error: fetchError } = await supabase
-      .from('approval_requests')
-      .select('*, damage_report:damage_reports!approval_requests_damage_report_id_fkey(id, status)')
-      .eq('id', id)
-      .single()
+  if (updateError) {
+    return NextResponse.json(
+      { error: `approval_request UPDATE fehlgeschlagen: ${updateError.message}` },
+      { status: 500 }
+    );
+  }
 
-    if (fetchError || !approvalRequest) {
-      return NextResponse.json(
-        { error: 'Approval request not found' },
-        { status: 404 }
-      )
-    }
-
-    // Check if already decided
-    if (approvalRequest.status !== 'pending') {
-      return NextResponse.json(
-        { error: `Approval request already ${approvalRequest.status}` },
-        { status: 400 }
-      )
-    }
-
-    // Update approval request
-    const { error: updateError } = await supabase
-      .from('approval_requests')
-      .update({
-        status: body.decision,
-        decided_by: user.id,
-        decided_at: new Date().toISOString(),
-        decision_notes: body.notes || null,
-      })
-      .eq('id', id)
-
-    if (updateError) {
-      console.error('Error updating approval request:', updateError)
-      return NextResponse.json(
-        { error: 'Failed to update approval request' },
-        { status: 500 }
-      )
-    }
-
-    // Update damage report status based on decision
-    const newReportStatus = body.decision === 'approved' 
-      ? 'approved' 
-      : 'rejected'
-
-    const { error: reportUpdateError } = await supabase
-      .from('damage_reports')
-      .update({ status: newReportStatus })
-      .eq('id', approvalRequest.damage_report_id)
-
-    if (reportUpdateError) {
-      console.error('Error updating damage report status:', reportUpdateError)
-      // Don't fail the whole request, the approval was recorded
-    }
-
-    // TODO: Resume the paused LangGraph agent run (Phase 3 integration)
-    // This will be implemented when the agent is ready
-    // if (approvalRequest.agent_run_id) {
-    //   await resumeAgentRun(approvalRequest.agent_run_id, body.decision)
-    // }
+  // 5. Agent resumieren
+  try {
+    const result = await resumeDamageReportAgent(
+      approvalRequest.agent_run_id,
+      decision,
+      notes ?? null
+    );
 
     return NextResponse.json({
       success: true,
-      decision: body.decision,
-      approvalRequestId: id,
-      damageReportId: approvalRequest.damage_report_id,
-    })
+      decision,
+      agentRunId: result.agentRunId,
+      agentStatus: result.status,
+      bookingId: result.bookingId ?? null,
+    });
+
   } catch (error) {
-    console.error('Error processing approval decision:', error)
+    const message =
+      error instanceof Error ? error.message : String(error);
+
+    console.error(
+      `[approvals/decide] Resume fehlgeschlagen — approvalRequestId=${approvalRequestId}:`,
+      error
+    );
+
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Agent Resume fehlgeschlagen: ${message}` },
       { status: 500 }
-    )
+    );
   }
 }
