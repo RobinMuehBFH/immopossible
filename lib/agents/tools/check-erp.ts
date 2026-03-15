@@ -1,7 +1,7 @@
 // lib/agent/tools/check-erp.ts
 
 import { adminSupabase } from "@/lib/supabase/admin";
-import { AgentState, ErpContext, AgentStep, NotificationChannel } from "@/lib/agent/state";
+import { AgentState, ErpContext, AgentStep, NotificationChannel } from "@/lib/agents/state";
 
 // ─── Node-Funktion ────────────────────────────────────────────────────────────
 
@@ -20,6 +20,9 @@ export async function checkErpNode(
   if (reportError || !report) {
     throw new Error(`damage_report nicht gefunden: ${state.reportId}`);
   }
+
+  if (!report.property_id) throw new Error("damage_report hat keine property_id");
+  if (!report.tenant_id)   throw new Error("damage_report hat keine tenant_id");
 
   // 2. Property laden
   const { data: property, error: propertyError } = await adminSupabase
@@ -46,7 +49,7 @@ export async function checkErpNode(
   // 4. Mieter-Property Junction laden (Unit-Nummer)
   const { data: tenantProperty } = await adminSupabase
     .from("tenants_properties")
-    .select("unit, contract_start, contract_end")
+    .select("unit_number, lease_start, lease_end")
     .eq("tenant_id", report.tenant_id)
     .eq("property_id", report.property_id)
     .maybeSingle();
@@ -65,15 +68,15 @@ export async function checkErpNode(
   const erpContext: ErpContext = {
     propertyId: property.id,
     propertyAddress: property.address,
-    propertyUnit: tenantProperty?.unit ?? null,
+    propertyUnit: tenantProperty?.unit_number ?? null,
     tenantId: tenantProfile.id,
-    tenantName: tenantProfile.full_name,
+    tenantName: tenantProfile.full_name ?? "Unbekannt",
     tenantEmail: tenantProfile.email ?? null,
     tenantPhone: tenantProfile.phone ?? null,
     tenantChannel,
-    contractStart: tenantProperty?.contract_start ?? null,
-    contractEnd: tenantProperty?.contract_end ?? null,
-    additionalData: erpData?.data ?? {},
+    contractStart: tenantProperty?.lease_start ?? null,
+    contractEnd: tenantProperty?.lease_end ?? null,
+    additionalData: (erpData?.data as Record<string, unknown>) ?? {},
   };
 
   // 8. Schritt loggen

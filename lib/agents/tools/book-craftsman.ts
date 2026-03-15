@@ -1,7 +1,7 @@
 // lib/agent/tools/book-craftsman.ts
 
 import { adminSupabase } from "@/lib/supabase/admin";
-import { AgentState, AgentStep } from "@/lib/agent/state";
+import { AgentState, AgentStep } from "@/lib/agents/state";
 
 // ─── Hilfsfunktion: frühestmöglichen Termin berechnen ────────────────────────
 
@@ -55,6 +55,8 @@ export async function bookCraftsmanNode(
   }
 
   const scheduledAt = calculateScheduledDate(state.priority);
+  // Extract just the date part (YYYY-MM-DD) for the DATE column
+  const scheduledDate = scheduledAt.split("T")[0];
 
   // Buchungsnotiz zusammenstellen
   const notes = [
@@ -73,14 +75,11 @@ export async function bookCraftsmanNode(
   const { data: booking, error } = await adminSupabase
     .from("bookings")
     .insert({
-      report_id: state.reportId,
+      damage_report_id: state.reportId,
       craftsman_id: state.selectedCraftsman.id,
-      property_id: state.erpContext.propertyId,
-      scheduled_at: scheduledAt,
-      estimated_cost_chf: state.estimatedCostChf,
+      scheduled_date: scheduledDate,
       status: "scheduled",
       notes,
-      approval_request_id: state.approvalRequestId ?? null,
     })
     .select("id")
     .single();
@@ -92,7 +91,7 @@ export async function bookCraftsmanNode(
   // 2. damage_report Status aktualisieren
   await adminSupabase
     .from("damage_reports")
-    .update({ status: "craftsman_booked" })
+    .update({ status: "booked" })
     .eq("id", state.reportId);
 
   // 3. Schritt loggen

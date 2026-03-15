@@ -8,7 +8,7 @@ import {
   DamageCategory,
   PriorityLevel,
   AgentStep,
-} from "@/lib/agent/state";
+} from "@/lib/agents/state";
 
 // ─── LLM Output Schema (strukturierte Antwort via tool_use) ──────────────────
 

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { ReportStatusOverride } from './status-override'
 import { AgentRunsTrace } from './agent-runs-trace'
+import { TriggerAgentButton } from './trigger-agent-button'
 
 interface ReportDetailPageProps {
   params: Promise<{ id: string }>
@@ -167,7 +168,10 @@ export default async function ReportDetailPage({
                 })}
               </p>
             </div>
-            <ReportStatusOverride reportId={report.id} currentStatus={report.status} />
+            <div className="flex items-center gap-3">
+              <TriggerAgentButton reportId={report.id} reportStatus={report.status} />
+              <ReportStatusOverride reportId={report.id} currentStatus={report.status} />
+            </div>
           </div>
         </CardContent>
       </Card>

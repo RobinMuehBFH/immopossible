@@ -6,7 +6,7 @@ import {
   AgentStep,
   SelectedCraftsman,
   DamageCategory,
-} from "@/lib/agent/state";
+} from "@/lib/agents/state";
 
 // ─── Mapping: DamageCategory → Spezialisierungs-Keywords ─────────────────────
 //
@@ -55,11 +55,11 @@ export async function findCraftsmanNode(
 
   const selectedCraftsman: SelectedCraftsman = {
     id: craftsman.id,
-    name: craftsman.name,
-    company: craftsman.company ?? null,
+    name: craftsman.contact_name ?? craftsman.company_name ?? "Unbekannt",
+    company: craftsman.company_name ?? null,
     phone: craftsman.phone ?? null,
     email: craftsman.email ?? null,
-    specializations: craftsman.specializations ?? [],
+    specializations: (craftsman.specializations as string[]) ?? [],
   };
 
   // 3. Schritt loggen
@@ -101,8 +101,8 @@ async function queryCraftsman(keywords: string[]) {
     // Fallback: einfach den ersten aktiven Handwerker nehmen
     const { data, error } = await adminSupabase
       .from("craftsmen")
-      .select("id, name, company, phone, email, specializations")
-      .eq("active", true)
+      .select("id, contact_name, company_name, phone, email, specializations")
+      .eq("is_active", true)
       .limit(1)
       .maybeSingle();
 
@@ -114,8 +114,8 @@ async function queryCraftsman(keywords: string[]) {
   // Gibt Handwerker zurück deren specializations[] mindestens einen Treffer hat
   const { data, error } = await adminSupabase
     .from("craftsmen")
-    .select("id, name, company, phone, email, specializations")
-    .eq("active", true)
+    .select("id, contact_name, company_name, phone, email, specializations")
+    .eq("is_active", true)
     .overlaps("specializations", keywords)
     .limit(1)
     .maybeSingle();

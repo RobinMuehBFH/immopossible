@@ -1,16 +1,16 @@
 // lib/agent/graph.ts
 
 import { StateGraph, MemorySaver } from "@langchain/langgraph";
-import { AgentStateAnnotation, APPROVAL_THRESHOLD_CHF } from "@/lib/agent/state";
+import { AgentStateAnnotation, APPROVAL_THRESHOLD_CHF } from "@/lib/agents/state";
 
-import { classifyNode }         from "@/lib/agent/tools/classify";
-import { checkErpNode }         from "@/lib/agent/tools/check-erp";
-import { findCraftsmanNode }    from "@/lib/agent/tools/find-craftsman";
-import { estimateCostNode }     from "@/lib/agent/tools/estimate-cost";
-import { requestApprovalNode }  from "@/lib/agent/tools/request-approval";
-import { bookCraftsmanNode }    from "@/lib/agent/tools/book-craftsman";
-import { sendNotificationNode } from "@/lib/agent/tools/send-notification";
-import { updateStatusNode }     from "@/lib/agent/tools/update-status";
+import { classifyNode }         from "@/lib/agents/tools/classify";
+import { checkErpNode }         from "@/lib/agents/tools/check-erp";
+import { findCraftsmanNode }    from "@/lib/agents/tools/find-craftsman";
+import { estimateCostNode }     from "@/lib/agents/tools/estimate-cost";
+import { requestApprovalNode }  from "@/lib/agents/tools/request-approval";
+import { bookCraftsmanNode }    from "@/lib/agents/tools/book-craftsman";
+import { sendNotificationNode } from "@/lib/agents/tools/send-notification";
+import { updateStatusNode }     from "@/lib/agents/tools/update-status";
 
 // ─── Conditional Edge: braucht es eine Genehmigung? ──────────────────────────
 

@@ -2,7 +2,7 @@
 
 import { interrupt } from "@langchain/langgraph";
 import { adminSupabase } from "@/lib/supabase/admin";
-import { AgentState, AgentStep } from "@/lib/agent/state";
+import { AgentState, AgentStep } from "@/lib/agents/state";
 
 // ─── Node-Funktion ────────────────────────────────────────────────────────────
 
@@ -18,20 +18,24 @@ export async function requestApprovalNode(
   }
 
   // 1. approval_requests Zeile schreiben
+  const requestedAction = `Handwerker ${state.selectedCraftsman.name} (${state.selectedCraftsman.company ?? "kein Unternehmen"}) beauftragen für: ${state.damageSummary ?? state.category}`;
+
   const { data: approvalRequest, error } = await adminSupabase
     .from("approval_requests")
     .insert({
       agent_run_id: state.agentRunId,
-      report_id: state.reportId,
+      damage_report_id: state.reportId,
       status: "pending",
       estimated_cost_chf: state.estimatedCostChf,
-      cost_estimation_reason: state.costEstimationReason,
-      craftsman_id: state.selectedCraftsman.id,
-      craftsman_name: state.selectedCraftsman.name,
-      damage_summary: state.damageSummary,
-      damage_category: state.category,
-      damage_priority: state.priority,
-      requested_at: new Date().toISOString(),
+      requested_action: requestedAction,
+      context: {
+        craftsmanId: state.selectedCraftsman.id,
+        craftsmanName: state.selectedCraftsman.name,
+        costEstimationReason: state.costEstimationReason,
+        damageSummary: state.damageSummary,
+        damageCategory: state.category,
+        damagePriority: state.priority,
+      },
     })
     .select("id")
     .single();
@@ -45,7 +49,7 @@ export async function requestApprovalNode(
   // 2. damage_report Status auf waiting_for_human setzen
   await adminSupabase
     .from("damage_reports")
-    .update({ status: "waiting_for_human" })
+    .update({ status: "waiting_for_approval" })
     .eq("id", state.reportId);
 
   // 3. agent_run Status auf waiting_for_human setzen
@@ -54,7 +58,8 @@ export async function requestApprovalNode(
     .from("agent_runs")
     .update({
       status: "waiting_for_human",
-      steps_taken: state.steps,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      steps_taken: state.steps as any,
     })
     .eq("id", state.agentRunId);
 

@@ -1,7 +1,7 @@
 // lib/agent/tools/update-status.ts
 
 import { adminSupabase } from "@/lib/supabase/admin";
-import { AgentState, AgentStep } from "@/lib/agent/state";
+import { AgentState, AgentStep } from "@/lib/agents/state";
 
 // ─── Node-Funktion ────────────────────────────────────────────────────────────
 
@@ -16,10 +16,7 @@ export async function updateStatusNode(
   // 1. damage_report auf finalen Status setzen
   await adminSupabase
     .from("damage_reports")
-    .update({
-      status: finalStatus,
-      resolved_at: finalStatus === "resolved" ? new Date().toISOString() : null,
-    })
+    .update({ status: finalStatus as "completed" | "rejected" | "booked" })
     .eq("id", state.reportId);
 
   // 2. Schritt loggen
@@ -57,9 +54,9 @@ function deriveFinalStatus(state: AgentState): string {
 
   // Handwerker gebucht — Normal- und Approval-Flow
   if (state.bookingId) {
-    return "craftsman_booked";
+    return "booked";
   }
 
-  // Fallback (sollte nie erreicht werden)
-  return "resolved";
+  // Fallback
+  return "completed";
 }

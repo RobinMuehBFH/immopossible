@@ -1,7 +1,7 @@
 // app/api/approvals/[id]/decide/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { resumeDamageReportAgent } from "@/lib/agent/run";
+import { resumeDamageReportAgent } from "@/lib/agents/run";
 import { adminSupabase } from "@/lib/supabase/admin";
 
 // ─── Request Body Schema ──────────────────────────────────────────────────────
@@ -15,9 +15,9 @@ interface DecideRequestBody {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const approvalRequestId = params.id;
+  const { id: approvalRequestId } = await params;
 
   // 1. Body parsen
   let body: DecideRequestBody;
@@ -68,7 +68,7 @@ export async function POST(
     .from("approval_requests")
     .update({
       status: decision,
-      notes: notes ?? null,
+      decision_notes: notes ?? null,
       decided_at: new Date().toISOString(),
     })
     .eq("id", approvalRequestId);
@@ -77,6 +77,13 @@ export async function POST(
     return NextResponse.json(
       { error: `approval_request UPDATE fehlgeschlagen: ${updateError.message}` },
       { status: 500 }
+    );
+  }
+
+  if (!approvalRequest.agent_run_id) {
+    return NextResponse.json(
+      { error: "Kein agent_run_id auf diesem approval_request" },
+      { status: 422 }
     );
   }
 

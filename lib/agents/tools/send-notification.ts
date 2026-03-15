@@ -1,7 +1,7 @@
 // lib/agent/tools/send-notification.ts
 
 import { adminSupabase } from "@/lib/supabase/admin";
-import { AgentState, AgentStep } from "@/lib/agent/state";
+import { AgentState, AgentStep } from "@/lib/agents/state";
 
 // ─── Nachrichtenvorlagen ──────────────────────────────────────────────────────
 
@@ -68,10 +68,10 @@ export async function sendNotificationNode(
     );
   }
 
-  // Buchung laden um scheduledAt zu bekommen
+  // Buchung laden um scheduled_date zu bekommen
   const { data: booking, error: bookingError } = await adminSupabase
     .from("bookings")
-    .select("scheduled_at")
+    .select("scheduled_date")
     .eq("id", state.bookingId)
     .single();
 
@@ -79,20 +79,18 @@ export async function sendNotificationNode(
     throw new Error(`Buchung nicht gefunden: ${state.bookingId}`);
   }
 
-  const tenantMessage = buildTenantMessage(state, booking.scheduled_at);
-  const managerMessage = buildManagerMessage(state, booking.scheduled_at);
+  const scheduledDisplay = booking.scheduled_date ?? new Date().toISOString();
+  const tenantMessage = buildTenantMessage(state, scheduledDisplay);
+  const managerMessage = buildManagerMessage(state, scheduledDisplay);
 
   // 1. Mieter-Notification schreiben
   const { data: tenantNotification, error: tenantError } = await adminSupabase
     .from("notifications")
     .insert({
-      report_id: state.reportId,
-      booking_id: state.bookingId,
+      damage_report_id: state.reportId,
       recipient_id: state.erpContext.tenantId,
       channel: state.erpContext.tenantChannel,
-      message: tenantMessage,
-      status: "pending",       // Phase 5/6: Resend / Twilio senden dann
-      sent_at: null,
+      body: tenantMessage,
     })
     .select("id")
     .single();
@@ -105,13 +103,9 @@ export async function sendNotificationNode(
   await adminSupabase
     .from("notifications")
     .insert({
-      report_id: state.reportId,
-      booking_id: state.bookingId,
-      recipient_id: null,         // null = geht ans ganze Manager-Team
+      damage_report_id: state.reportId,
       channel: "in_app",
-      message: managerMessage,
-      status: "pending",
-      sent_at: null,
+      body: managerMessage,
     });
 
   // 3. Schritt loggen

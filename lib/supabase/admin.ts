@@ -29,3 +29,19 @@ export function createAdminClient() {
     },
   })
 }
+
+/**
+ * Singleton admin client for agent tools.
+ * Uses a Proxy so env vars are resolved lazily on first use.
+ */
+let _instance: ReturnType<typeof createAdminClient> | null = null
+
+export const adminSupabase = new Proxy(
+  {} as ReturnType<typeof createAdminClient>,
+  {
+    get(_target, prop) {
+      if (!_instance) _instance = createAdminClient()
+      return _instance[prop as keyof ReturnType<typeof createAdminClient>]
+    },
+  }
+)

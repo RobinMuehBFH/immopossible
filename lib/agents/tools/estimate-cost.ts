@@ -6,7 +6,7 @@ import {
   AgentState,
   AgentStep,
   APPROVAL_THRESHOLD_CHF,
-} from "@/lib/agent/state";
+} from "@/lib/agents/state";
 
 // ─── LLM Output Schema ────────────────────────────────────────────────────────
 

@@ -1,12 +1,12 @@
 // lib/agent/run.ts
 
 import { adminSupabase } from "@/lib/supabase/admin";
-import { createGraph } from "@/lib/agent/graph";
+import { createGraph } from "@/lib/agents/graph";
 import {
   AgentState,
   AgentRunStatus,
   AgentStep,
-} from "@/lib/agent/state";
+} from "@/lib/agents/state";
 
 // ─── Typen für den Rückgabewert ───────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ export async function runDamageReportAgent(
   const { data: agentRun, error: insertError } = await adminSupabase
     .from("agent_runs")
     .insert({
-      report_id: reportId,
+      damage_report_id: reportId,
       status: "running",
       started_at: new Date().toISOString(),
       steps_taken: [],
@@ -79,7 +79,8 @@ export async function runDamageReportAgent(
       .from("agent_runs")
       .update({
         status: finalState.status,           // 'completed' oder 'waiting_for_human'
-        steps_taken: finalState.steps,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        steps_taken: finalState.steps as any,
         output_summary: outputSummary,
         duration_ms: durationMs,
         completed_at: new Date().toISOString(),
@@ -171,7 +172,8 @@ export async function resumeDamageReportAgent(
       .from("agent_runs")
       .update({
         status: finalState.status,
-        steps_taken: finalState.steps,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        steps_taken: finalState.steps as any,
         output_summary: outputSummary,
         duration_ms: durationMs,
         completed_at: new Date().toISOString(),
