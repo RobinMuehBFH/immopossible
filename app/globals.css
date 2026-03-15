@@ -1,119 +1,195 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
-}
-
+/* Purity UI Dashboard Design System */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Teal - Primary (Purity UI signature color) */
+  --primary: #4FD1C5;
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #38B2AC;
+  --primary-active: #319795;
+  
+  /* Teal gradient */
+  --gradient-start: #4FD1C5;
+  --gradient-end: #38B2AC;
+  
+  /* Neutrals - Light gray background like Purity UI */
+  --background: #F8F9FA;
+  --foreground: #2D3748;
+  --card: #FFFFFF;
+  --card-foreground: #2D3748;
+  --popover: #FFFFFF;
+  --popover-foreground: #2D3748;
+  
+  /* Secondary/Muted */
+  --secondary: #F7FAFC;
+  --secondary-foreground: #4A5568;
+  --muted: #EDF2F7;
+  --muted-foreground: #A0AEC0;
+  --accent: #E6FFFA;
+  --accent-foreground: #319795;
+  
+  /* Status Colors */
+  --success: #48BB78;
+  --success-foreground: #FFFFFF;
+  --success-bg: #C6F6D5;
+  --warning: #ED8936;
+  --warning-foreground: #FFFFFF;
+  --warning-bg: #FEEBC8;
+  --destructive: #E53E3E;
+  --destructive-foreground: #FFFFFF;
+  --destructive-bg: #FED7D7;
+  --info: #4299E1;
+  --info-foreground: #FFFFFF;
+  --info-bg: #BEE3F8;
+  
+  /* Borders & Input */
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #4FD1C5;
+  
+  /* Chart Colors */
+  --chart-1: #4FD1C5;
+  --chart-2: #48BB78;
+  --chart-3: #ED8936;
+  --chart-4: #9F7AEA;
+  --chart-5: #F56565;
+  
+  --radius: 0.9375rem;
+  
+  /* Sidebar - White/Light like Purity UI */
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #2D3748;
+  --sidebar-primary: #4FD1C5;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F7FAFC;
+  --sidebar-accent-foreground: #2D3748;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #4FD1C5;
+  --sidebar-muted: #A0AEC0;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0.00 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Teal - Primary */
+  --primary: #4FD1C5;
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #38B2AC;
+  --primary-active: #319795;
+  
+  /* Teal gradient */
+  --gradient-start: #4FD1C5;
+  --gradient-end: #38B2AC;
+  
+  /* Neutrals - Navy dark mode like Purity UI */
+  --background: #1A202C;
+  --foreground: #E2E8F0;
+  --card: #2D3748;
+  --card-foreground: #E2E8F0;
+  --popover: #2D3748;
+  --popover-foreground: #E2E8F0;
+  
+  /* Secondary/Muted */
+  --secondary: #4A5568;
+  --secondary-foreground: #E2E8F0;
+  --muted: #4A5568;
+  --muted-foreground: #A0AEC0;
+  --accent: #234E52;
+  --accent-foreground: #81E6D9;
+  
+  /* Status Colors */
+  --success: #68D391;
+  --success-foreground: #1A202C;
+  --success-bg: #276749;
+  --warning: #F6AD55;
+  --warning-foreground: #1A202C;
+  --warning-bg: #744210;
+  --destructive: #FC8181;
+  --destructive-foreground: #1A202C;
+  --destructive-bg: #822727;
+  --info: #63B3ED;
+  --info-foreground: #1A202C;
+  --info-bg: #2A4365;
+  
+  /* Borders & Input */
+  --border: #4A5568;
+  --input: #4A5568;
+  --ring: #4FD1C5;
+  
+  /* Chart Colors */
+  --chart-1: #4FD1C5;
+  --chart-2: #68D391;
+  --chart-3: #F6AD55;
+  --chart-4: #B794F4;
+  --chart-5: #FC8181;
+  
+  /* Sidebar - Dark navy like Purity UI */
+  --sidebar: #1A202C;
+  --sidebar-foreground: #E2E8F0;
+  --sidebar-primary: #4FD1C5;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2D3748;
+  --sidebar-accent-foreground: #E2E8F0;
+  --sidebar-border: #4A5568;
+  --sidebar-ring: #4FD1C5;
+  --sidebar-muted: #718096;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-bg: var(--destructive-bg);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-bg: var(--info-bg);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-gradient-start: var(--gradient-start);
+  --color-gradient-end: var(--gradient-end);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-muted: var(--sidebar-muted);
 }
 
 @layer base {
@@ -123,7 +199,48 @@
   body {
     @apply bg-background text-foreground;
   }
-  html {
-    @apply font-sans;
+}
+
+/* Purity UI Gradient */
+.purity-gradient {
+  background: linear-gradient(135deg, #4FD1C5 0%, #38B2AC 100%);
+}
+
+.purity-gradient-text {
+  background: linear-gradient(135deg, #4FD1C5 0%, #38B2AC 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom Animations */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { 
+    opacity: 0; 
+    transform: translateY(8px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .animate-slide-up {
+    animation: none;
   }
 }
