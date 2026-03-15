@@ -13,13 +13,14 @@ import {
 // Die craftsmen-Tabelle hat ein `specializations: text[]` Feld.
 // Dieses Mapping übersetzt die Agent-Kategorie in die passenden Keywords.
 
+// Mapping: category → gültige damage_category Enum-Werte für die DB-Query
 const CATEGORY_TO_SPECIALIZATIONS: Record<DamageCategory, string[]> = {
-  plumbing:    ["plumbing", "sanitär", "wasser", "rohre"],
-  electrical:  ["electrical", "elektro", "strom"],
-  heating:     ["heating", "heizung", "boiler", "hvac"],
-  structural:  ["structural", "bau", "maurer", "dach", "fenster"],
-  appliance:   ["appliance", "geräte", "haushaltsgeräte"],
-  pest:        ["pest", "schädlinge", "schimmel", "desinfektion"],
+  plumbing:    ["plumbing"],
+  electrical:  ["electrical"],
+  heating:     ["heating"],
+  structural:  ["structural"],
+  appliance:   ["appliance"],
+  pest_control: ["pest_control"],
   other:       [],  // fallback: alle aktiven Handwerker
 };
 
@@ -60,6 +61,7 @@ export async function findCraftsmanNode(
     phone: craftsman.phone ?? null,
     email: craftsman.email ?? null,
     specializations: (craftsman.specializations as string[]) ?? [],
+    hourlyRateChf: craftsman.hourly_rate_chf ?? null,
   };
 
   // 3. Schritt loggen
@@ -101,7 +103,7 @@ async function queryCraftsman(keywords: string[]) {
     // Fallback: einfach den ersten aktiven Handwerker nehmen
     const { data, error } = await adminSupabase
       .from("craftsmen")
-      .select("id, contact_name, company_name, phone, email, specializations")
+      .select("id, contact_name, company_name, phone, email, specializations, hourly_rate_chf")
       .eq("is_active", true)
       .limit(1)
       .maybeSingle();
@@ -114,7 +116,7 @@ async function queryCraftsman(keywords: string[]) {
   // Gibt Handwerker zurück deren specializations[] mindestens einen Treffer hat
   const { data, error } = await adminSupabase
     .from("craftsmen")
-    .select("id, contact_name, company_name, phone, email, specializations")
+    .select("id, contact_name, company_name, phone, email, specializations, hourly_rate_chf")
     .eq("is_active", true)
     .overlaps("specializations", keywords)
     .limit(1)

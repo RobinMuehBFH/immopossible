@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Bot } from 'lucide-react'
 import { AgentRunsTable } from './agent-runs-table'
@@ -6,7 +7,8 @@ import { AgentRunsTable } from './agent-runs-table'
 export const dynamic = 'force-dynamic'
 
 export default async function AgentRunsPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   const { data: agentRuns } = await supabase
     .from('agent_runs')

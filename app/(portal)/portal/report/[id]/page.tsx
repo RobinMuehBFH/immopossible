@@ -1,0 +1,69 @@
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { ReportDetailClient } from './report-detail-client'
+
+interface ReportDetailPageProps {
+  params: Promise<{ id: string }>
+}
+
+export default async function ReportDetailPage({
+  params,
+}: ReportDetailPageProps) {
+  const { id } = await params
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
+  const userId = session!.user.id
+
+  // Fetch report with property (RLS ensures tenant only sees own reports)
+  const { data: report, error } = await supabase
+    .from('damage_reports')
+    .select(
+      `
+      *,
+      property:properties!damage_reports_property_id_fkey(name, address)
+    `
+    )
+    .eq('id', id)
+    .eq('tenant_id', userId)
+    .single()
+
+  if (error || !report) {
+    notFound()
+  }
+
+  // Fetch booking if exists
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select(
+      `
+      id,
+      scheduled_date,
+      status,
+      craftsman:craftsmen!bookings_craftsman_id_fkey(
+        company_name,
+        contact_name,
+        phone
+      )
+    `
+    )
+    .eq('damage_report_id', id)
+    .single()
+
+  const formattedBooking = booking
+    ? {
+        id: booking.id,
+        scheduled_date: booking.scheduled_date,
+        status: booking.status,
+        craftsman: booking.craftsman as {
+          company_name: string
+          contact_name: string | null
+          phone: string | null
+        },
+      }
+    : null
+
+  return (
+    <ReportDetailClient initialReport={report} initialBooking={formattedBooking} />
+  )
+}

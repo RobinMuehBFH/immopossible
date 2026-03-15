@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { X, Upload, ImageIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import Image from 'next/image'
 
 interface ImageUploadProps {
   value: string[]
@@ -30,32 +29,27 @@ export function ImageUpload({
 
       const remainingSlots = maxFiles - value.length - previews.length
       const filesToUpload = acceptedFiles.slice(0, remainingSlots)
-
       if (filesToUpload.length === 0) return
 
-      // Create previews immediately
+      // Show local previews immediately while uploading
       const newPreviews = filesToUpload.map((file) => ({
         file,
         preview: URL.createObjectURL(file),
       }))
       setPreviews((prev) => [...prev, ...newPreviews])
-
       setIsUploading(true)
+
       try {
         const uploadedUrls = await onUpload(filesToUpload)
-        onChange([...value, ...uploadedUrls])
-        // Clear previews after successful upload
-        setPreviews((prev) =>
-          prev.filter((p) => !filesToUpload.includes(p.file))
-        )
-        // Revoke object URLs
+        // Always clear the preview placeholders
+        setPreviews((prev) => prev.filter((p) => !filesToUpload.includes(p.file)))
         newPreviews.forEach((p) => URL.revokeObjectURL(p.preview))
+        if (uploadedUrls.length > 0) {
+          onChange([...value, ...uploadedUrls])
+        }
       } catch (error) {
         console.error('Upload failed:', error)
-        // Remove failed previews
-        setPreviews((prev) =>
-          prev.filter((p) => !filesToUpload.includes(p.file))
-        )
+        setPreviews((prev) => prev.filter((p) => !filesToUpload.includes(p.file)))
         newPreviews.forEach((p) => URL.revokeObjectURL(p.preview))
       } finally {
         setIsUploading(false)
@@ -83,23 +77,24 @@ export function ImageUpload({
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Image Grid */}
       {allImages.length > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
           {allImages.map((img, index) => (
             <div
               key={img.url}
-              className="group relative aspect-square overflow-hidden rounded-lg border bg-muted"
+              className="group relative aspect-square overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#F7FAFC] dark:border-[#4A5568] dark:bg-[#2D3748]"
             >
-              <Image
+              {/* Use plain <img> to support both blob: and https: URLs */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={img.url}
                 alt={`Upload ${index + 1}`}
-                fill
-                className="object-cover"
+                className="h-full w-full object-cover"
               />
               {img.type === 'preview' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
                   <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
                 </div>
               )}
@@ -107,9 +102,9 @@ export function ImageUpload({
                 <button
                   type="button"
                   onClick={() => removeImage(index)}
-                  className="absolute right-1 top-1 rounded-full bg-destructive p-1 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                  className="absolute right-1.5 top-1.5 rounded-full bg-[#E53E3E] p-1 text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3 w-3" />
                 </button>
               )}
             </div>
@@ -118,40 +113,43 @@ export function ImageUpload({
       )}
 
       {/* Dropzone */}
-      {value.length < maxFiles && (
+      {value.length + previews.length < maxFiles && (
         <div
           {...getRootProps()}
           className={cn(
-            'cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors',
+            'cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all',
             isDragActive
-              ? 'border-primary bg-primary/5'
-              : 'border-border hover:border-border-strong',
+              ? 'border-[#4FD1C5] bg-[#4FD1C5]/5'
+              : 'border-[#E2E8F0] hover:border-[#4FD1C5]/60 dark:border-[#4A5568] dark:hover:border-[#4FD1C5]/60',
             (disabled || isUploading) && 'cursor-not-allowed opacity-50'
           )}
         >
           <input {...getInputProps()} />
-          <div className="flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-3">
             {isUploading ? (
               <>
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                <p className="text-sm text-muted-foreground">Uploading...</p>
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-[#4FD1C5] border-t-transparent" />
+                <p className="text-sm font-medium text-[#A0AEC0]">Wird hochgeladen…</p>
               </>
             ) : (
               <>
-                <div className="rounded-full bg-muted p-3">
+                <div className={cn(
+                  'rounded-2xl p-3',
+                  isDragActive ? 'bg-[#4FD1C5]/10' : 'bg-[#F7FAFC] dark:bg-[#2D3748]'
+                )}>
                   {isDragActive ? (
-                    <Upload className="h-6 w-6 text-primary" />
+                    <Upload className="h-6 w-6 text-[#4FD1C5]" />
                   ) : (
-                    <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                    <ImageIcon className="h-6 w-6 text-[#A0AEC0]" />
                   )}
                 </div>
                 <div>
-                  <p className="text-sm font-medium">
-                    {isDragActive ? 'Drop images here' : 'Click or drag images'}
+                  <p className="text-sm font-semibold text-[#2D3748] dark:text-white">
+                    {isDragActive ? 'Bilder loslassen' : 'Klicken oder Bilder hierher ziehen'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Up to {maxFiles - value.length} more image
-                    {maxFiles - value.length !== 1 ? 's' : ''} (JPEG, PNG, WebP)
+                  <p className="mt-0.5 text-xs text-[#A0AEC0]">
+                    Noch {maxFiles - value.length - previews.length} Bild
+                    {maxFiles - value.length - previews.length !== 1 ? 'er' : ''} möglich (JPEG, PNG, WebP)
                   </p>
                 </div>
               </>

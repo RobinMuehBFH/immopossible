@@ -19,7 +19,7 @@ const ClassifyOutputSchema = z.object({
     "heating",
     "structural",
     "appliance",
-    "pest",
+    "pest_control",
     "other",
   ]),
   priority: z.enum(["low", "medium", "high", "urgent"]),
@@ -53,7 +53,7 @@ KATEGORIE-DEFINITIONEN:
 - heating: Heizung, Boiler, Heizkörper, Warmwasser
 - structural: Risse, Mauerwerk, Dach, Fenster, Türen, Böden, Wände
 - appliance: Einbaugeräte (Herd, Kühlschrank, Geschirrspüler, Waschmaschine)
-- pest: Schimmel, Ungeziefer, Mäuse, Insekten
+- pest_control: Schimmel, Ungeziefer, Mäuse, Insekten
 - other: alles andere
 
 PRIORITÄT-DEFINITIONEN:

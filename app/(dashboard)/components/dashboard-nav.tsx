@@ -13,10 +13,9 @@ import {
   X,
   Menu,
   LogOut,
-  HelpCircle,
+  UserCircle,
 } from 'lucide-react'
-import { ThemeToggle } from '@/components/theme-toggle'
-import { signOut } from '@/app/(auth)/actions'
+import { SignOutConfirmDialog } from '@/components/sign-out-confirm-dialog'
 
 const mainNavItems = [
   { name: 'Reports', href: '/dashboard', icon: FileText },
@@ -24,6 +23,7 @@ const mainNavItems = [
   { name: 'Properties', href: '/dashboard/properties', icon: Building2 },
   { name: 'Craftsmen', href: '/dashboard/craftsmen', icon: Wrench },
 ]
+
 
 interface DashboardNavProps {
   profile?: {
@@ -121,31 +121,13 @@ export function DashboardNav({ profile }: DashboardNavProps) {
           })}
         </nav>
 
-        {/* Theme Toggle */}
-        <div className="mx-2 mb-2 px-4">
-          <ThemeToggle />
-        </div>
-
-        {/* Help Card */}
-        <div className="mx-2 p-4">
-          <div className="purity-gradient rounded-2xl p-5 text-center shadow-lg">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-md">
-              <HelpCircle className="h-6 w-6 text-[#4FD1C5]" />
-            </div>
-            <p className="mb-1 text-sm font-bold text-white">Need Help?</p>
-            <p className="mb-4 text-xs text-white/80">Check our documentation</p>
-            <Button
-              size="sm"
-              className="w-full rounded-xl bg-white font-bold text-[#2D3748] shadow-md hover:bg-white/90"
-            >
-              Documentation
-            </Button>
-          </div>
-        </div>
-
         {/* User */}
         <div className="mx-2 mb-4 p-4">
-          <div className="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-[#F7FAFC] dark:hover:bg-[#2D3748]">
+          <Link
+            href="/dashboard/profile"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 rounded-2xl p-3 transition-colors hover:bg-[#F7FAFC] dark:hover:bg-[#2D3748]"
+          >
             <div className="purity-gradient flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white shadow-md">
               {initials}
             </div>
@@ -157,15 +139,18 @@ export function DashboardNav({ profile }: DashboardNavProps) {
                 {profile?.role?.replace('_', ' ') || 'Manager'}
               </p>
             </div>
+            <UserCircle className="h-4 w-4 text-[#A0AEC0]" />
+          </Link>
+          <SignOutConfirmDialog>
             <Button
               variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-[#A0AEC0] hover:text-[#2D3748] dark:hover:text-[#E2E8F0]"
-              onClick={() => signOut()}
+              size="sm"
+              className="mt-1 w-full justify-start gap-2 rounded-2xl text-[#A0AEC0] hover:text-[#E53E3E]"
             >
               <LogOut className="h-4 w-4" />
+              Sign out
             </Button>
-          </div>
+          </SignOutConfirmDialog>
         </div>
       </aside>
     </>

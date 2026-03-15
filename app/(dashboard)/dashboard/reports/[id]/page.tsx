@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -48,7 +49,8 @@ export default async function ReportDetailPage({
   params,
 }: ReportDetailPageProps) {
   const { id } = await params
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   // Fetch report with tenant and property
   const { data: report, error } = await supabase

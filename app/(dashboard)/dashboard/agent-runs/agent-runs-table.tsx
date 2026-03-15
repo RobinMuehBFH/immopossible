@@ -33,12 +33,23 @@ interface AgentRunWithReport extends AgentRun {
 }
 
 interface AgentStep {
-  tool_name: string
+  tool: string
   input?: Record<string, unknown>
   output?: Record<string, unknown>
   timestamp?: string
-  duration_ms?: number
+  durationMs?: number
   error?: string
+}
+
+const toolLabels: Record<string, string> = {
+  classify_damage_report:  'Schadensbericht klassifizieren',
+  find_craftsman:          'Handwerker suchen',
+  estimate_cost:           'Kosten schätzen',
+  request_human_approval:  'Manager-Genehmigung anfordern',
+  book_craftsman:          'Handwerker buchen',
+  send_notification:       'Benachrichtigung senden',
+  update_report_status:    'Status aktualisieren',
+  check_erp_mock:          'ERP-System prüfen',
 }
 
 interface AgentRunsTableProps {
@@ -267,9 +278,14 @@ export function AgentRunsTable({ initialRuns }: AgentRunsTableProps) {
                                             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4FD1C5]/10 text-xs font-bold text-[#4FD1C5]">
                                               {index + 1}
                                             </span>
-                                            <span className="font-mono text-sm text-[#2D3748] dark:text-white">
-                                              {step.tool_name}
-                                            </span>
+                                            <div>
+                                              <span className="text-sm font-semibold text-[#2D3748] dark:text-white">
+                                                {toolLabels[step.tool] ?? step.tool?.replace(/_/g, ' ')}
+                                              </span>
+                                              <span className="ml-2 font-mono text-xs text-[#A0AEC0]">
+                                                {step.tool}
+                                              </span>
+                                            </div>
                                           </div>
                                           <div className="flex items-center gap-2">
                                             {step.error ? (
@@ -277,9 +293,9 @@ export function AgentRunsTable({ initialRuns }: AgentRunsTableProps) {
                                             ) : step.output ? (
                                               <CheckCircle className="h-4 w-4 text-success" />
                                             ) : null}
-                                            {step.duration_ms && (
+                                            {step.durationMs && (
                                               <span className="text-xs text-[#A0AEC0]">
-                                                {formatDuration(step.duration_ms)}
+                                                {formatDuration(step.durationMs)}
                                               </span>
                                             )}
                                             {isStepExpanded ? (

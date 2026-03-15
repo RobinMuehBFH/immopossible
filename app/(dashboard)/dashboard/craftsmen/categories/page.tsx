@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { FolderOpen, Tags } from 'lucide-react'
 import { CategoriesManager } from './categories-manager'
@@ -6,7 +7,8 @@ import { CategoriesManager } from './categories-manager'
 export const dynamic = 'force-dynamic'
 
 export default async function CategoriesPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   // Fetch craft groups with specializations
   const { data: craftGroups } = await supabase

@@ -43,7 +43,11 @@ const llm = new ChatAnthropic({
 
 function buildPrompt(state: AgentState): string {
   const craftsmanInfo = state.selectedCraftsman
-    ? `Handwerker: ${state.selectedCraftsman.name} (${state.selectedCraftsman.specializations.join(", ")})`
+    ? `Handwerker: ${state.selectedCraftsman.name} (${state.selectedCraftsman.specializations.join(", ")})${
+        state.selectedCraftsman.hourlyRateChf
+          ? ` — Stundensatz: CHF ${state.selectedCraftsman.hourlyRateChf}/h (DIESER WERT MUSS VERWENDET WERDEN)`
+          : ""
+      }`
     : "Handwerker: unbekannt";
 
   const erpInfo = state.erpContext
@@ -61,12 +65,13 @@ ${erpInfo}
 ${craftsmanInfo}
 
 SCHWEIZER MARKTPREISE (Richtwerte 2024):
-- Stundensatz Handwerker: CHF 90-140/h
+- Stundensatz: VERWENDE DEN STUNDENSATZ DES HANDWERKERS falls angegeben, sonst CHF 90-140/h
 - Notfalleinsatz Zuschlag: +50-100%
 - Materialkosten: je nach Schaden
 - Mindestpauschale Ausrücken: CHF 80-120
 
 WICHTIG:
+- Wenn ein konkreter Stundensatz des Handwerkers angegeben ist, MUSS dieser verwendet werden
 - Schätze konservativ aber realistisch für den Schweizer Markt
 - Bei urgent/high Priorität: Notfallzuschlag einrechnen
 - Grenze für Genehmigungspflicht: CHF ${APPROVAL_THRESHOLD_CHF}

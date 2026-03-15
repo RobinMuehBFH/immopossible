@@ -1,6 +1,16 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import {
+  Inbox,
+  Brain,
+  Clock,
+  ThumbsUp,
+  Wrench,
+  CalendarCheck,
+  Hammer,
+  CheckCircle2,
+} from 'lucide-react'
 
 interface TimelineEvent {
   id: string
@@ -11,117 +21,169 @@ interface TimelineEvent {
 
 interface TimelineProps {
   events: TimelineEvent[]
+  currentStatus: string
 }
 
-const statusLabels: Record<string, string> = {
-  received: 'Report Received',
-  triaged: 'Triaged by Agent',
-  awaiting_approval: 'Awaiting Approval',
-  booking_craftsman: 'Booking Craftsman',
-  booked: 'Craftsman Booked',
-  completed: 'Repair Completed',
-  closed: 'Report Closed',
+const ORDERED_STEPS = [
+  'received',
+  'triaging',
+  'waiting_for_approval',
+  'approved',
+  'booking_craftsman',
+  'booked',
+  'in_progress',
+  'completed',
+]
+
+const statusConfig: Record<
+  string,
+  { label: string; icon: React.ElementType; color: string; bg: string; ring: string }
+> = {
+  received: {
+    label: 'Meldung eingegangen',
+    icon: Inbox,
+    color: 'text-[#4FD1C5]',
+    bg: 'bg-[#4FD1C5]',
+    ring: 'ring-[#4FD1C5]/20',
+  },
+  triaging: {
+    label: 'Wird analysiert',
+    icon: Brain,
+    color: 'text-[#667EEA]',
+    bg: 'bg-[#667EEA]',
+    ring: 'ring-[#667EEA]/20',
+  },
+  waiting_for_approval: {
+    label: 'Wartet auf Genehmigung',
+    icon: Clock,
+    color: 'text-[#ED8936]',
+    bg: 'bg-[#ED8936]',
+    ring: 'ring-[#ED8936]/20',
+  },
+  approved: {
+    label: 'Genehmigt',
+    icon: ThumbsUp,
+    color: 'text-[#48BB78]',
+    bg: 'bg-[#48BB78]',
+    ring: 'ring-[#48BB78]/20',
+  },
+  booking_craftsman: {
+    label: 'Handwerker wird gebucht',
+    icon: Wrench,
+    color: 'text-[#4299E1]',
+    bg: 'bg-[#4299E1]',
+    ring: 'ring-[#4299E1]/20',
+  },
+  booked: {
+    label: 'Handwerker gebucht',
+    icon: CalendarCheck,
+    color: 'text-[#4FD1C5]',
+    bg: 'bg-[#4FD1C5]',
+    ring: 'ring-[#4FD1C5]/20',
+  },
+  in_progress: {
+    label: 'Reparatur läuft',
+    icon: Hammer,
+    color: 'text-[#4299E1]',
+    bg: 'bg-[#4299E1]',
+    ring: 'ring-[#4299E1]/20',
+  },
+  completed: {
+    label: 'Reparatur abgeschlossen',
+    icon: CheckCircle2,
+    color: 'text-[#48BB78]',
+    bg: 'bg-[#48BB78]',
+    ring: 'ring-[#48BB78]/20',
+  },
 }
 
-const statusIcons: Record<string, React.ReactNode> = {
-  received: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-    </svg>
-  ),
-  triaged: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-    </svg>
-  ),
-  awaiting_approval: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  booking_craftsman: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  ),
-  booked: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  completed: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-    </svg>
-  ),
-  closed: (
-    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-    </svg>
-  ),
-}
-
-export function Timeline({ events }: TimelineProps) {
-  if (events.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">No timeline events yet.</p>
-    )
-  }
+export function Timeline({ events, currentStatus }: TimelineProps) {
+  const currentIndex = ORDERED_STEPS.indexOf(currentStatus)
+  // Build a lookup for actual event timestamps
+  const eventByStatus = Object.fromEntries(events.map((e) => [e.status, e]))
 
   return (
-    <div className="flow-root">
-      <ul role="list" className="-mb-8">
-        {events.map((event, eventIdx) => (
-          <li key={event.id}>
-            <div className="relative pb-8">
-              {eventIdx !== events.length - 1 && (
-                <span
-                  className="absolute left-4 top-4 -ml-px h-full w-0.5 bg-border"
-                  aria-hidden="true"
+    <div className="space-y-0">
+      {ORDERED_STEPS.map((step, idx) => {
+        const config = statusConfig[step]
+        const Icon = config.icon
+        const isCompleted = idx <= currentIndex
+        const isCurrent = idx === currentIndex
+        const isLast = idx === ORDERED_STEPS.length - 1
+        const event = eventByStatus[step]
+
+        return (
+          <div key={step} className="flex gap-3">
+            {/* Icon + connector */}
+            <div className="flex flex-col items-center">
+              <div
+                className={cn(
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-all',
+                  isCompleted
+                    ? cn(config.bg, 'shadow-sm', isCurrent && cn('ring-4', config.ring))
+                    : 'bg-[#EDF2F7] dark:bg-[#2D3748]'
+                )}
+              >
+                <Icon
+                  className={cn(
+                    'h-3.5 w-3.5',
+                    isCompleted ? 'text-white' : 'text-[#CBD5E0] dark:text-[#4A5568]'
+                  )}
+                />
+              </div>
+              {!isLast && (
+                <div
+                  className={cn(
+                    'mt-1 w-0.5 flex-1',
+                    idx < currentIndex ? 'bg-[#4FD1C5]/40' : 'bg-[#E2E8F0] dark:bg-[#4A5568]'
+                  )}
+                  style={{ minHeight: '20px' }}
                 />
               )}
-              <div className="relative flex space-x-3">
-                <div>
-                  <span
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-full ring-8 ring-background',
-                      eventIdx === 0
-                        ? 'bg-primary text-white'
-                        : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {statusIcons[event.status] || (
-                      <span className="h-2 w-2 rounded-full bg-current" />
-                    )}
-                  </span>
-                </div>
-                <div className="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {statusLabels[event.status] || event.status.replace(/_/g, ' ')}
-                    </p>
-                    {event.description && (
-                      <p className="mt-0.5 text-sm text-muted-foreground">
-                        {event.description}
-                      </p>
-                    )}
-                  </div>
-                  <div className="whitespace-nowrap text-right text-sm text-muted-foreground">
-                    <time dateTime={event.timestamp}>
-                      {new Date(event.timestamp).toLocaleDateString('de-CH', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </time>
-                  </div>
-                </div>
-              </div>
             </div>
-          </li>
-        ))}
-      </ul>
+
+            {/* Content */}
+            <div className={cn('pb-4 min-w-0 flex-1', isLast && 'pb-0')}>
+              <div className="flex items-start justify-between gap-2">
+                <p
+                  className={cn(
+                    'text-sm leading-tight',
+                    isCompleted
+                      ? isCurrent
+                        ? cn('font-bold', config.color)
+                        : 'font-semibold text-[#4A5568] dark:text-[#CBD5E0]'
+                      : 'font-medium text-[#CBD5E0] dark:text-[#4A5568]'
+                  )}
+                >
+                  {config.label}
+                  {isCurrent && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-[#4FD1C5]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#4FD1C5]">
+                      Aktuell
+                    </span>
+                  )}
+                </p>
+                {event?.timestamp ? (
+                  <time className="shrink-0 text-xs text-[#A0AEC0] mt-0.5">
+                    {new Date(event.timestamp).toLocaleString('de-CH', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </time>
+                ) : !isCompleted ? (
+                  <span className="shrink-0 text-xs text-[#CBD5E0] dark:text-[#4A5568] mt-0.5">
+                    Ausstehend
+                  </span>
+                ) : null}
+              </div>
+              {event?.description && (
+                <p className="mt-0.5 text-xs text-[#A0AEC0] leading-relaxed">{event.description}</p>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

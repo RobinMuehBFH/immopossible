@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Building2 } from 'lucide-react'
 import { PropertiesList } from './properties-list'
@@ -6,7 +7,8 @@ import { PropertiesList } from './properties-list'
 export const dynamic = 'force-dynamic'
 
 export default async function PropertiesPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   const { data: properties } = await supabase
     .from('properties')

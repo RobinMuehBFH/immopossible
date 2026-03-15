@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Wrench, Star, FolderOpen } from 'lucide-react'
 import { CraftsmenList } from './craftsmen-list'
@@ -8,7 +9,8 @@ import { Button } from '@/components/ui/button'
 export const dynamic = 'force-dynamic'
 
 export default async function CraftsmenPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   // Fetch craftsmen
   const { data: craftsmen } = await supabase

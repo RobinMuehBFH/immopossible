@@ -11,7 +11,7 @@ export type DamageCategory =
   | "heating"        // Heizung
   | "structural"     // Bausubstanz / Mauerwerk
   | "appliance"      // Haushaltsgeräte
-  | "pest"           // Schädlinge
+  | "pest_control"   // Schädlinge
   | "other";         // Sonstiges
 
 export type PriorityLevel =
@@ -78,6 +78,7 @@ export interface SelectedCraftsman {
   phone: string | null;
   email: string | null;
   specializations: string[];
+  hourlyRateChf: number | null;
 }
 
 // ─── Haupt-State des LangGraph Agenten ───────────────────────────────────────

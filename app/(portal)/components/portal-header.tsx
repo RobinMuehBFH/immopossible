@@ -4,16 +4,9 @@ import Link from 'next/link'
 import { Profile } from '@/lib/types/database.types'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { ThemeToggle } from '@/components/theme-toggle'
-import { signOut } from '@/app/(auth)/actions'
+import { LogOut, User, Plus } from 'lucide-react'
+import { SignOutConfirmDialog } from '@/components/sign-out-confirm-dialog'
+import { Home } from 'lucide-react'
 
 interface PortalHeaderProps {
   profile: Profile | null
@@ -30,64 +23,57 @@ export function PortalHeader({ profile }: PortalHeaderProps) {
     '?'
 
   return (
-    <header className="border-b bg-card">
-      <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-4">
-        <Link href="/portal" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-              />
-            </svg>
-          </div>
-          <span className="text-lg font-semibold">Tenant Portal</span>
+    <header className="flex h-20 items-center justify-between bg-white px-6 shadow-sm dark:bg-[#1A202C]">
+      {/* Logo */}
+      <Link href="/portal" className="flex items-center gap-3">
+        <div className="purity-gradient flex h-9 w-9 items-center justify-center rounded-2xl shadow-lg">
+          <Home className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <span className="text-sm font-bold tracking-wide text-[#2D3748] dark:text-[#E2E8F0]">
+            IMMOPOSSIBLE
+          </span>
+          <p className="text-xs text-[#A0AEC0] leading-none">Tenant Portal</p>
+        </div>
+      </Link>
+
+      {/* Right side */}
+      <div className="flex items-center gap-3">
+        <Link href="/portal/report/new">
+          <Button
+            size="sm"
+            className="rounded-xl bg-[#4FD1C5] font-bold text-white hover:bg-[#38B2AC] gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Schaden melden</span>
+          </Button>
         </Link>
 
-        <div className="flex items-center gap-4">
-          <ThemeToggle />
-          <Link href="/portal/report/new">
-            <Button>Report Damage</Button>
-          </Link>
+        <Link href="/portal/profile">
+          <Button variant="ghost" size="sm" className="flex items-center gap-2 rounded-xl hover:bg-[#F7FAFC]">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || 'User'} />
+              <AvatarFallback className="purity-gradient text-xs font-bold text-white">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden sm:inline text-sm font-semibold text-[#2D3748] dark:text-[#E2E8F0]">
+              {profile?.full_name || profile?.email || 'Profil'}
+            </span>
+            <User className="h-4 w-4 text-[#A0AEC0] sm:hidden" />
+          </Button>
+        </Link>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger className="relative h-10 w-10 rounded-full hover:bg-accent">
-              <Avatar className="h-10 w-10">
-                <AvatarImage
-                  src={profile?.avatar_url || undefined}
-                  alt={profile?.full_name || 'User'}
-                />
-                <AvatarFallback>{initials}</AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {profile?.full_name || 'User'}
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {profile?.email}
-                  </p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="cursor-pointer text-destructive focus:text-destructive"
-                onClick={() => signOut()}
-              >
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <SignOutConfirmDialog>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-xl text-[#A0AEC0] hover:text-[#E53E3E] hover:bg-[#FFF5F5]"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline ml-1">Sign out</span>
+          </Button>
+        </SignOutConfirmDialog>
       </div>
     </header>
   )

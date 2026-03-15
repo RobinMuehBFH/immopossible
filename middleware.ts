@@ -1,93 +1,55 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { NextResponse } from "next/server"
+import type { NextRequest } from "next/server"
+import { getToken } from "next-auth/jwt"
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
+  const token = await getToken({
+    req: request,
+    secret: process.env.AUTH_SECRET,
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
+  const { pathname } = request.nextUrl
 
-  // Refresh session if expired
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  // Define protected routes
   const isAuthRoute =
-    request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/signup') ||
-    request.nextUrl.pathname.startsWith('/auth')
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/auth")
 
-  const isDashboardRoute = request.nextUrl.pathname.startsWith('/dashboard')
-  const isPortalRoute = request.nextUrl.pathname.startsWith('/portal')
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api')
+  const isDashboardRoute = pathname.startsWith("/dashboard")
+  const isPortalRoute = pathname.startsWith("/portal")
+  const isApiRoute = pathname.startsWith("/api")
 
   // Allow API routes and auth callback to pass through
-  if (isApiRoute || request.nextUrl.pathname === '/auth/callback') {
-    return supabaseResponse
+  if (isApiRoute || pathname === "/auth/callback") {
+    return NextResponse.next()
   }
 
   // Redirect unauthenticated users to login
-  if (!user && (isDashboardRoute || isPortalRoute)) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('redirect', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+  if (!token && (isDashboardRoute || isPortalRoute)) {
+    const loginUrl = new URL("/login", request.url)
+    loginUrl.searchParams.set("redirect", pathname)
+    return NextResponse.redirect(loginUrl)
   }
 
   // Redirect authenticated users away from auth pages
-  if (user && isAuthRoute) {
-    const url = request.nextUrl.clone()
-
-    // Get user role from session to determine redirect
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    const userRole = session?.user?.user_metadata?.role || 'tenant'
-
-    if (userRole === 'tenant') {
-      url.pathname = '/portal'
-    } else {
-      url.pathname = '/dashboard'
-    }
-
+  if (token && isAuthRoute) {
+    const role = token.role as string
+    const url = new URL(role === "tenant" ? "/portal" : "/dashboard", request.url)
     return NextResponse.redirect(url)
   }
 
-  return supabaseResponse
+  // Ensure supabase token is present for protected routes
+  if (token && !token.supabaseAccessToken && (isDashboardRoute || isPortalRoute)) {
+    const signoutUrl = new URL("/api/auth/signout", request.url)
+    signoutUrl.searchParams.set("callbackUrl", "/login?relogin=true")
+    return NextResponse.redirect(signoutUrl)
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files (images, etc)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }

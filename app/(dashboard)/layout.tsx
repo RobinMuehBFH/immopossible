@@ -1,9 +1,12 @@
 'use client'
 
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { DashboardNav } from './components/dashboard-nav'
 import { DashboardHeader } from './components/dashboard-header'
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { Profile } from '@/lib/types/database.types'
+import { createAuthenticatedBrowserClient } from '@/lib/supabase/client'
 
 // Sidebar context
 interface SidebarContextType {
@@ -26,44 +29,43 @@ export default function DashboardLayout({
 }: {
   children: ReactNode
 }) {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function loadUser() {
-      const { createClient: createBrowserClient } = await import('@/lib/supabase/client')
-      const supabase = createBrowserClient()
+    if (status === 'loading') return
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    if (!session) {
+      router.replace('/login')
+      return
+    }
 
-      if (!user) {
-        window.location.href = '/login'
-        return
-      }
+    if (session.user.role === 'tenant') {
+      router.replace('/portal')
+      return
+    }
 
+    async function loadProfile() {
+      if (!session?.supabaseAccessToken) return
+
+      const supabase = createAuthenticatedBrowserClient(session.supabaseAccessToken)
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single()
-
-      // Only allow admin and property_manager roles
-      if (profileData?.role === 'tenant') {
-        window.location.href = '/portal'
-        return
-      }
 
       setProfile(profileData)
       setLoading(false)
     }
 
-    loadUser()
-  }, [])
+    loadProfile()
+  }, [session, status, router])
 
-  if (loading) {
+  if (status === 'loading' || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="purity-gradient h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -76,7 +78,7 @@ export default function DashboardLayout({
       <div className="min-h-screen bg-background">
         <DashboardNav profile={profile} />
         <div className="lg:ml-[280px]">
-          <DashboardHeader profile={profile} />
+          <DashboardHeader />
           <main className="min-h-[calc(100vh-80px)] p-6">{children}</main>
         </div>
       </div>

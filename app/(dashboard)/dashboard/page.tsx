@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -10,12 +11,43 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import Link from 'next/link'
-import { FileText, Bot, Building2, Wrench, TrendingUp, TrendingDown } from 'lucide-react'
+import { FileText, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { DashboardCharts } from './dashboard-charts'
 import { ReportsFilter } from './reports-filter'
 import { PendingApprovals } from './pending-approvals'
 import { Suspense } from 'react'
 import type { ReportStatus, PriorityLevel } from '@/lib/types/database.types'
+
+function computeReportsByMonth(reports: { created_at: string }[]) {
+  const now = new Date()
+  const months: { key: string; name: string; value: number }[] = []
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push({
+      key: `${d.getFullYear()}-${d.getMonth()}`,
+      name: d.toLocaleDateString('en-US', { month: 'short' }),
+      value: 0,
+    })
+  }
+  for (const r of reports) {
+    const d = new Date(r.created_at)
+    const key = `${d.getFullYear()}-${d.getMonth()}`
+    const month = months.find((m) => m.key === key)
+    if (month) month.value++
+  }
+  return months.map(({ name, value }) => ({ name, value }))
+}
+
+function computeReportsByStatus(reports: { status: string }[]) {
+  const counts: Record<string, number> = {}
+  for (const r of reports) {
+    counts[r.status] = (counts[r.status] || 0) + 1
+  }
+  return Object.entries(counts).map(([name, value]) => ({
+    name: name.replace(/_/g, ' '),
+    value,
+  }))
+}
 
 const statusColors: Record<string, string> = {
   received: 'bg-info/10 text-info',
@@ -40,35 +72,17 @@ const priorityColors: Record<string, string> = {
 interface StatCardProps {
   title: string
   value: string | number
-  change?: string
-  changeType?: 'up' | 'down'
   icon: React.ReactNode
 }
 
-function StatCard({ title, value, change, changeType, icon }: StatCardProps) {
+function StatCard({ title, value, icon }: StatCardProps) {
   return (
     <Card className="rounded-2xl border-0 shadow-xl dark:bg-[#2D3748]">
       <CardContent className="p-6">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[#A0AEC0]">{title}</p>
-            <div className="mt-2 flex items-baseline gap-2">
-              <p className="text-2xl font-bold text-[#2D3748] dark:text-white">{value}</p>
-              {change && (
-                <span
-                  className={`flex items-center text-xs font-bold ${
-                    changeType === 'up' ? 'text-[#48BB78]' : 'text-[#E53E3E]'
-                  }`}
-                >
-                  {changeType === 'up' ? (
-                    <TrendingUp className="mr-0.5 h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="mr-0.5 h-3 w-3" />
-                  )}
-                  {change}
-                </span>
-              )}
-            </div>
+            <p className="mt-2 text-2xl font-bold text-[#2D3748] dark:text-white">{value}</p>
           </div>
           <div className="purity-gradient flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-lg">
             {icon}
@@ -93,7 +107,8 @@ export default async function DashboardPage({
   searchParams: Promise<SearchParams>
 }) {
   const params = await searchParams
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
 
   // Build query with filters
   let query = supabase
@@ -145,14 +160,39 @@ export default async function DashboardPage({
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
 
-  const { data: runningAgents } = await supabase
-    .from('agent_runs')
-    .select('id')
-    .eq('status', 'running')
-
   const { data: properties } = await supabase.from('properties').select('id, name')
 
-  const { data: craftsmen } = await supabase.from('craftsmen').select('id')
+  // Fetch all reports (unfiltered) for statistics and charts
+  const { data: allReports } = await supabase
+    .from('damage_reports')
+    .select('status, created_at')
+
+  // Agent run stats
+  const { data: agentRunData } = await supabase
+    .from('agent_runs')
+    .select('status, duration_ms')
+
+  const completedRuns = agentRunData?.filter((r) => r.status === 'completed') || []
+  const failedRuns = agentRunData?.filter((r) => r.status === 'failed') || []
+  const runningAgents = agentRunData?.filter((r) => r.status === 'running') || []
+  const successRate =
+    completedRuns.length + failedRuns.length > 0
+      ? Math.round((completedRuns.length / (completedRuns.length + failedRuns.length)) * 100)
+      : null
+  const avgDurationMs =
+    completedRuns.length > 0
+      ? Math.round(
+          completedRuns.reduce((sum, r) => sum + (r.duration_ms || 0), 0) / completedRuns.length
+        )
+      : null
+  const avgDurationSec = avgDurationMs !== null ? Math.round(avgDurationMs / 1000) : null
+
+  // Open reports = not completed, not cancelled
+  const openStatuses = ['received', 'triaging', 'waiting_for_approval', 'approved', 'booking_craftsman', 'booked', 'in_progress']
+  const openReportsCount = allReports?.filter((r) => openStatuses.includes(r.status)).length || 0
+
+  const reportsByMonth = computeReportsByMonth(allReports || [])
+  const reportsByStatus = computeReportsByStatus(allReports || [])
 
   return (
     <div className="space-y-6">
@@ -167,28 +207,24 @@ export default async function DashboardPage({
       {/* Stat Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="Total Reports"
-          value={reports?.length || 0}
-          change="+12%"
-          changeType="up"
+          title="Open Reports"
+          value={openReportsCount}
           icon={<FileText className="h-6 w-6" />}
         />
         <StatCard
           title="Pending Approvals"
           value={pendingApprovals?.length || 0}
-          icon={<Bot className="h-6 w-6" />}
+          icon={<AlertCircle className="h-6 w-6" />}
         />
         <StatCard
-          title="Properties"
-          value={properties?.length || 0}
-          change="+3"
-          changeType="up"
-          icon={<Building2 className="h-6 w-6" />}
+          title="Agent Success Rate"
+          value={successRate !== null ? `${successRate}%` : '—'}
+          icon={<CheckCircle2 className="h-6 w-6" />}
         />
         <StatCard
-          title="Active Craftsmen"
-          value={craftsmen?.length || 0}
-          icon={<Wrench className="h-6 w-6" />}
+          title="Avg. Agent Run Time"
+          value={avgDurationSec !== null ? `${avgDurationSec}s` : '—'}
+          icon={<Clock className="h-6 w-6" />}
         />
       </div>
 
@@ -212,11 +248,14 @@ export default async function DashboardPage({
 
       {/* Charts */}
       <DashboardCharts
-        stats={{
-          reports: reports?.length || 0,
-          properties: properties?.length || 0,
-          craftsmen: craftsmen?.length || 0,
-          agentRuns: runningAgents?.length || 0,
+        reportsByMonth={reportsByMonth}
+        reportsByStatus={reportsByStatus}
+        agentStats={{
+          completed: completedRuns.length,
+          failed: failedRuns.length,
+          running: runningAgents.length,
+          successRate,
+          avgDurationSec,
         }}
       />
 

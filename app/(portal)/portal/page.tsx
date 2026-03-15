@@ -1,5 +1,6 @@
 import * as React from 'react'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/config'
+import { createAuthenticatedSupabaseClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
@@ -56,11 +57,10 @@ const channelIcons: Record<string, React.ReactNode> = {
 }
 
 export default async function PortalPage() {
-  const supabase = await createClient()
+  const session = await auth()
+  const supabase = createAuthenticatedSupabaseClient(session!.supabaseAccessToken!)
+  const userId = session!.user.id
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
 
   const { data: reports } = await supabase
     .from('damage_reports')
@@ -70,7 +70,7 @@ export default async function PortalPage() {
       property:properties!damage_reports_property_id_fkey(name)
     `
     )
-    .eq('tenant_id', user?.id ?? '')
+    .eq('tenant_id', userId)
     .order('created_at', { ascending: false })
 
   return (
