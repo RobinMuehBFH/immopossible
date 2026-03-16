@@ -1,6 +1,6 @@
 // lib/agent/graph.ts
 
-import { StateGraph, MemorySaver } from "@langchain/langgraph";
+import { StateGraph, MemorySaver, END } from "@langchain/langgraph";
 import { AgentStateAnnotation, APPROVAL_THRESHOLD_CHF } from "@/lib/agents/state";
 
 import { classifyNode }         from "@/lib/agents/tools/classify";
@@ -34,7 +34,13 @@ function routeAfterEstimate(
 
 function routeAfterApproval(
   state: typeof AgentStateAnnotation.State
-): "book_craftsman" | "update_status" {
+): "book_craftsman" | "update_status" | "end" {
+  // approvalStatus ist null → Manager hat noch nicht entschieden → Graph beenden
+  if (!state.approvalStatus) {
+    console.log("[graph] Keine Genehmigung vorhanden → Graph beendet (wartet auf Manager)");
+    return "end";
+  }
+
   if (state.approvalStatus === "approved") {
     console.log("[graph] Genehmigung erteilt → route: book_craftsman");
     return "book_craftsman";
@@ -84,10 +90,11 @@ export function createGraph() {
       book_craftsman:   "book_craftsman",
     })
 
-    // ── Nach HITL: approved → buchen, rejected → abschliessen ───────────────
+    // ── Nach HITL: approved → buchen, rejected → abschliessen, null → warten ─
     .addConditionalEdges("request_approval", routeAfterApproval, {
       book_craftsman: "book_craftsman",
       update_status:  "update_status",
+      end:            END,
     })
 
     // ── Finaler linearer Flow ────────────────────────────────────────────────

@@ -6,7 +6,13 @@ import {
   AgentState,
   AgentRunStatus,
   AgentStep,
+  DamageCategory,
+  PriorityLevel,
 } from "@/lib/agents/state";
+import { checkErpNode } from "@/lib/agents/tools/check-erp";
+import { bookCraftsmanNode } from "@/lib/agents/tools/book-craftsman";
+import { sendNotificationNode } from "@/lib/agents/tools/send-notification";
+import { updateStatusNode } from "@/lib/agents/tools/update-status";
 
 // ─── Typen für den Rückgabewert ───────────────────────────────────────────────
 
@@ -132,6 +138,11 @@ export async function runDamageReportAgent(
 /**
  * Resumt einen pausierten Agent-Run nach einer Approve/Reject-Entscheidung.
  * Wird von POST /api/approvals/[id]/decide aufgerufen.
+ *
+ * WICHTIG: Wir verwenden KEIN LangGraph-Checkpoint-Resume, weil MemorySaver
+ * nur in-memory ist und Next.js Serverless-Requests keinen gemeinsamen Speicher
+ * haben. Stattdessen rekonstruieren wir den State aus der DB und rufen die
+ * verbleibenden Nodes direkt auf.
  */
 export async function resumeDamageReportAgent(
   agentRunId: string,
@@ -144,36 +155,180 @@ export async function resumeDamageReportAgent(
     `[Agent] Run resumiert — agentRunId=${agentRunId}, decision=${approvalStatus}`
   );
 
-  // agent_run zurück auf running setzen
+  // 1. agent_run laden — brauchen reportId und bisherige Schritte
+  const { data: agentRun, error: agentRunError } = await adminSupabase
+    .from("agent_runs")
+    .select("id, damage_report_id, steps_taken")
+    .eq("id", agentRunId)
+    .single();
+
+  if (agentRunError || !agentRun) {
+    throw new Error(`agent_run nicht gefunden: ${agentRunId}`);
+  }
+
+  const reportId = agentRun.damage_report_id;
+  const existingSteps = (agentRun.steps_taken as AgentStep[]) || [];
+
+  // 2. approval_request laden — enthält Craftsman-ID, Kosten, Kontext
+  const { data: approvalRequest, error: approvalError } = await adminSupabase
+    .from("approval_requests")
+    .select("*")
+    .eq("agent_run_id", agentRunId)
+    .single();
+
+  if (approvalError || !approvalRequest) {
+    throw new Error(`approval_request für agentRunId=${agentRunId} nicht gefunden`);
+  }
+
+  const context = approvalRequest.context as {
+    craftsmanId: string;
+    craftsmanName: string;
+    costEstimationReason: string | null;
+    damageSummary: string | null;
+    damageCategory: DamageCategory;
+    damagePriority: PriorityLevel;
+  };
+
+  // 3. agent_run zurück auf running setzen
   await adminSupabase
     .from("agent_runs")
     .update({ status: "running" })
     .eq("id", agentRunId);
 
   try {
-    const graph = createGraph();
+    const newSteps: AgentStep[] = [];
 
-    // State mit Approval-Entscheidung injizieren und Graph fortsetzen
-    const resumeState: Partial<AgentState> = {
-      approvalStatus,
+    // ── Abgelehnt: Report als rejected markieren, fertig ────────────────────
+    if (approvalStatus === "rejected") {
+      const stepStart = Date.now();
+
+      await adminSupabase
+        .from("damage_reports")
+        .update({ status: "rejected" })
+        .eq("id", reportId);
+
+      newSteps.push({
+        tool: "update_report_status",
+        input: { reportId, decision: "rejected" },
+        output: { finalStatus: "rejected" },
+        timestamp: new Date().toISOString(),
+        durationMs: Date.now() - stepStart,
+      });
+
+      const durationMs = Date.now() - startedAt;
+      const outputSummary = `Genehmigung abgelehnt. ${approvalNotes || ""}`.trim();
+
+      await adminSupabase
+        .from("agent_runs")
+        .update({
+          status: "completed",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          steps_taken: [...existingSteps, ...newSteps] as any,
+          output_summary: outputSummary,
+          duration_ms: durationMs,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", agentRunId);
+
+      console.log(`[Agent] Resume (rejected) beendet — agentRunId=${agentRunId}`);
+
+      return {
+        agentRunId,
+        status: "completed",
+        outputSummary,
+        bookingId: null,
+        approvalRequestId: approvalRequest.id,
+      };
+    }
+
+    // ── Genehmigt: State aus DB rekonstruieren, dann buchen ─────────────────
+
+    // 4. Handwerker aus DB laden
+    const { data: craftsman, error: craftsmanError } = await adminSupabase
+      .from("craftsmen")
+      .select("id, contact_name, company_name, phone, email, specializations, hourly_rate_chf")
+      .eq("id", context.craftsmanId)
+      .single();
+
+    if (craftsmanError || !craftsman) {
+      throw new Error(`Handwerker nicht gefunden: ${context.craftsmanId}`);
+    }
+
+    // 5. ERP-Kontext neu laden (idempotente DB-Abfragen)
+    const erpResult = await checkErpNode({
+      reportId,
+      agentRunId,
+      messages: [],
+      category: null, priority: null, damageSummary: null,
+      erpContext: null, selectedCraftsman: null,
+      estimatedCostChf: null, costEstimationReason: null,
+      approvalRequired: false, approvalRequestId: null,
+      approvalStatus: null, approvalNotes: null,
+      bookingId: null, notificationId: null,
+      steps: [], status: "running", errorMessage: null,
+    } as AgentState);
+
+    if (!erpResult.erpContext) {
+      throw new Error("[resume] ERP-Kontext konnte nicht geladen werden");
+    }
+
+    // 6. State vollständig rekonstruieren
+    const reconstructedState: AgentState = {
+      reportId,
+      agentRunId,
+      messages: [],
+      category: context.damageCategory,
+      priority: context.damagePriority,
+      damageSummary: context.damageSummary,
+      erpContext: erpResult.erpContext,
+      selectedCraftsman: {
+        id: craftsman.id,
+        name: craftsman.contact_name ?? craftsman.company_name ?? "Unbekannt",
+        company: craftsman.company_name ?? null,
+        phone: craftsman.phone ?? null,
+        email: craftsman.email ?? null,
+        specializations: (craftsman.specializations as string[]) ?? [],
+        hourlyRateChf: craftsman.hourly_rate_chf ?? null,
+      },
+      estimatedCostChf: approvalRequest.estimated_cost_chf,
+      costEstimationReason: context.costEstimationReason,
+      approvalRequired: true,
+      approvalRequestId: approvalRequest.id,
+      approvalStatus: "approved",
       approvalNotes,
+      bookingId: null,
+      notificationId: null,
+      steps: existingSteps,
+      status: "running",
+      errorMessage: null,
     };
 
-    const finalState = await graph.invoke(resumeState, {
-      configurable: {
-        thread_id: agentRunId, // selber Key → LangGraph lädt den Checkpoint
-      },
-    });
+    // 7. Verbleibende Nodes direkt aufrufen
+    const bookResult = await bookCraftsmanNode(reconstructedState);
+    newSteps.push(...(bookResult.steps ?? []));
+    const stateAfterBook = { ...reconstructedState, ...bookResult };
+
+    const notifyResult = await sendNotificationNode(stateAfterBook as AgentState);
+    newSteps.push(...(notifyResult.steps ?? []));
+    const stateAfterNotify = { ...stateAfterBook, ...notifyResult };
+
+    const updateResult = await updateStatusNode(stateAfterNotify as AgentState);
+    newSteps.push(...(updateResult.steps ?? []));
 
     const durationMs = Date.now() - startedAt;
-    const outputSummary = buildOutputSummary(finalState);
+    const outputSummary = buildOutputSummary({
+      ...reconstructedState,
+      ...bookResult,
+      ...notifyResult,
+      ...updateResult,
+    } as AgentState);
 
     await adminSupabase
       .from("agent_runs")
       .update({
-        status: finalState.status,
+        status: "completed",
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        steps_taken: finalState.steps as any,
+        steps_taken: [...existingSteps, ...newSteps] as any,
         output_summary: outputSummary,
         duration_ms: durationMs,
         completed_at: new Date().toISOString(),
@@ -181,15 +336,15 @@ export async function resumeDamageReportAgent(
       .eq("id", agentRunId);
 
     console.log(
-      `[Agent] Resume beendet — status=${finalState.status}, duration=${durationMs}ms`
+      `[Agent] Resume (approved) beendet — bookingId=${stateAfterBook.bookingId}, duration=${durationMs}ms`
     );
 
     return {
       agentRunId,
-      status: finalState.status,
+      status: "completed",
       outputSummary,
-      bookingId: finalState.bookingId ?? null,
-      approvalRequestId: finalState.approvalRequestId ?? null,
+      bookingId: (stateAfterBook.bookingId as string) ?? null,
+      approvalRequestId: approvalRequest.id,
     };
 
   } catch (error) {

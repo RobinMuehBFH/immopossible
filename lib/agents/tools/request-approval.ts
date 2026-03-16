@@ -1,6 +1,5 @@
 // lib/agent/tools/request-approval.ts
 
-import { interrupt } from "@langchain/langgraph";
 import { adminSupabase } from "@/lib/supabase/admin";
 import { AgentState, AgentStep } from "@/lib/agents/state";
 
@@ -79,20 +78,12 @@ export async function requestApprovalNode(
   };
 
   console.log(
-    `[request-approval] approval_request erstellt: ${approvalRequestId} — Agent pausiert`
+    `[request-approval] approval_request erstellt: ${approvalRequestId} — Graph beendet, wartet auf Manager`
   );
 
-  // 5. ⚡ LangGraph Interrupt — Agent pausiert hier
+  // 5. State zurückgeben — Graph endet hier (routeAfterApproval → END wenn approvalStatus null)
   //    Supabase Realtime pusht die neue approval_requests Zeile ans Dashboard
-  //    POST /api/approvals/[id]/decide resumt den Agent später
-  interrupt({
-    reason: "human_approval_required",
-    approvalRequestId,
-    estimatedCostChf: state.estimatedCostChf,
-    message: `Genehmigung erforderlich: CHF ${state.estimatedCostChf} für ${state.selectedCraftsman.name}`,
-  });
-
-  // Dieser Code wird erst nach dem Resume erreicht
+  //    POST /api/approvals/[id]/decide rekonstruiert den State aus der DB und bucht direkt
   return {
     approvalRequestId,
     status: "waiting_for_human",
