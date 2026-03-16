@@ -1,80 +1,92 @@
 // app/api/webhooks/twilio/route.ts
 //
-// Empfängt eingehende WhatsApp-Nachrichten von Twilio.
-// Mieter schreibt eine Nachricht → neuer Schadensbericht wird erstellt.
+// Konversationeller WhatsApp-Webhook.
+// Führt den Mieter in 4 Schritten durch eine Schadensmeldung:
+//
+//   Mieter → initiale Beschreibung
+//   App    → "Wo genau befindet sich der Schaden?"
+//   Mieter → Ort
+//   App    → "Seit wann besteht das Problem?"
+//   Mieter → Zeitraum
+//   App    → "Wie dringend? 1–4"
+//   Mieter → Dringlichkeit
+//   App    → Bestätigung + Schadensbericht erstellt
 
 import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { adminSupabase } from "@/lib/supabase/admin";
 
-// ─── Twilio TwiML Antwort ─────────────────────────────────────────────────────
+// ─── Schritte der Konversation ────────────────────────────────────────────────
 
-function twimlResponse(message: string): NextResponse {
-  const body = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${message}</Message>
-</Response>`;
+type ConversationStep = "awaiting_location" | "awaiting_duration" | "awaiting_urgency";
 
-  return new NextResponse(body, {
-    status: 200,
-    headers: { "Content-Type": "text/xml" },
-  });
+interface SessionData {
+  description: string;
+  location?: string;
+  duration?: string;
+}
+
+// ─── TwiML Antwort ────────────────────────────────────────────────────────────
+
+function twiml(message: string): NextResponse {
+  return new NextResponse(
+    `<?xml version="1.0" encoding="UTF-8"?><Response><Message>${message}</Message></Response>`,
+    { status: 200, headers: { "Content-Type": "text/xml" } }
+  );
+}
+
+// ─── Priorität aus 1–4 ableiten ──────────────────────────────────────────────
+
+function parsePriority(text: string): "low" | "medium" | "high" | "urgent" | null {
+  const n = parseInt(text.trim());
+  if (isNaN(n) || n < 1 || n > 4) return null;
+  return (["low", "medium", "high", "urgent"] as const)[n - 1];
 }
 
 // ─── POST /api/webhooks/twilio ────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  // 1. Request-Body als FormData parsen (Twilio sendet application/x-www-form-urlencoded)
   const formData = await request.formData();
   const body = Object.fromEntries(formData.entries()) as Record<string, string>;
 
-  const from: string = body.From ?? ""; // z.B. "whatsapp:+41789675575"
-  const messageBody: string = (body.Body ?? "").trim();
+  const from: string = body.From ?? "";
+  const messageText: string = (body.Body ?? "").trim();
 
-  console.log(`[twilio-webhook] Eingehend von ${from}: "${messageBody}"`);
+  console.log(`[twilio-webhook] ${from}: "${messageText}"`);
 
-  // 2. Webhook-Signatur prüfen (nur wenn TWILIO_WEBHOOK_URL gesetzt ist)
+  // Signatur-Verifikation (nur wenn TWILIO_WEBHOOK_URL gesetzt)
   const webhookUrl = process.env.TWILIO_WEBHOOK_URL;
-  const authToken = process.env.TWILIO_AUTH_TOKEN ?? "";
-
   if (webhookUrl) {
     const signature = request.headers.get("x-twilio-signature") ?? "";
-    const isValid = twilio.validateRequest(authToken, signature, webhookUrl, body);
-
-    if (!isValid) {
-      console.warn("[twilio-webhook] Ungültige Signatur — Request abgelehnt");
-      return new NextResponse("Forbidden", { status: 403 });
-    }
+    const isValid = twilio.validateRequest(
+      process.env.TWILIO_AUTH_TOKEN ?? "",
+      signature,
+      webhookUrl,
+      body
+    );
+    if (!isValid) return new NextResponse("Forbidden", { status: 403 });
   }
 
-  // 3. Telefonnummer normalisieren: "whatsapp:+41789675575" → "+41789675575"
   const phoneNumber = from.replace("whatsapp:", "");
+  if (!phoneNumber) return twiml("Fehler: Absendernummer unbekannt.");
 
-  if (!phoneNumber) {
-    return twimlResponse("Fehler: Absendernummer konnte nicht ermittelt werden.");
-  }
-
-  // 4. Mieter anhand der Telefonnummer in der DB suchen
-  const { data: profile, error: profileError } = await adminSupabase
+  // ── Mieter anhand Telefonnummer identifizieren ─────────────────────────────
+  const { data: profile } = await adminSupabase
     .from("profiles")
-    .select("id, full_name, role")
+    .select("id, full_name")
     .eq("phone", phoneNumber)
     .eq("role", "tenant")
     .maybeSingle();
 
-  if (profileError) {
-    console.error("[twilio-webhook] Profil-Abfrage fehlgeschlagen:", profileError);
-    return twimlResponse("Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.");
-  }
-
   if (!profile) {
-    console.warn(`[twilio-webhook] Keine registrierte Nummer: ${phoneNumber}`);
-    return twimlResponse(
-      "Ihre Nummer ist nicht mit einem Konto verknüpft. Bitte melden Sie sich im Portal an und hinterlegen Sie Ihre Nummer."
+    return twiml(
+      "Ihre Nummer ist nicht registriert. Bitte melden Sie sich im Portal an und hinterlegen Sie Ihre Handynummer unter Profil."
     );
   }
 
-  // 5. Property des Mieters ermitteln
+  const firstName = profile.full_name?.split(" ")[0] ?? "Sie";
+
+  // ── Property ermitteln ────────────────────────────────────────────────────
   const { data: tenantProperty } = await adminSupabase
     .from("tenants_properties")
     .select("property_id")
@@ -82,44 +94,137 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (!tenantProperty) {
-    return twimlResponse(
-      "Ihrem Konto ist keine Liegenschaft zugeordnet. Bitte kontaktieren Sie Ihre Verwaltung."
+    return twiml("Ihrem Konto ist keine Liegenschaft zugeordnet. Bitte kontaktieren Sie Ihre Verwaltung.");
+  }
+
+  // ── Bestehende Session laden ───────────────────────────────────────────────
+  const { data: session } = await adminSupabase
+    .from("whatsapp_sessions")
+    .select("*")
+    .eq("phone_number", phoneNumber)
+    .maybeSingle();
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SCHRITT 1 — Erste Nachricht: Schadensbeschreibung
+  // ══════════════════════════════════════════════════════════════════════════
+  if (!session) {
+    await adminSupabase.from("whatsapp_sessions").insert({
+      phone_number: phoneNumber,
+      tenant_id: profile.id,
+      property_id: tenantProperty.property_id,
+      step: "awaiting_location" as ConversationStep,
+      collected_data: { description: messageText } satisfies SessionData,
+    });
+
+    return twiml(
+      `Danke ${firstName}! Ich habe Ihre Meldung notiert.\n\n` +
+      `📍 *Wo genau* befindet sich der Schaden? (z.B. Badezimmer, Küche, Keller)`
     );
   }
 
-  // 6. Nachricht parsen: erste Zeile = Titel, Rest = Beschreibung
-  const lines = messageBody.split("\n").filter((l) => l.trim() !== "");
-  const title = lines[0]?.slice(0, 100) || "Schadensmeldung via WhatsApp";
-  const description =
-    lines.length > 1
-      ? lines.join("\n")
-      : messageBody || "Keine weiteren Details angegeben.";
+  const data = session.collected_data as SessionData;
 
-  // 7. Schadensbericht erstellen
-  const { data: report, error: insertError } = await adminSupabase
-    .from("damage_reports")
-    .insert({
-      title,
-      description,
-      status: "received",
-      channel: "whatsapp",
-      property_id: tenantProperty.property_id,
-      tenant_id: profile.id,
-    })
-    .select("id")
-    .single();
+  // ══════════════════════════════════════════════════════════════════════════
+  // SCHRITT 2 — Ort empfangen
+  // ══════════════════════════════════════════════════════════════════════════
+  if (session.step === "awaiting_location") {
+    await adminSupabase
+      .from("whatsapp_sessions")
+      .update({
+        step: "awaiting_duration" as ConversationStep,
+        collected_data: { ...data, location: messageText } satisfies SessionData,
+      })
+      .eq("phone_number", phoneNumber);
 
-  if (insertError || !report) {
-    console.error("[twilio-webhook] damage_report INSERT fehlgeschlagen:", insertError);
-    return twimlResponse("Ihre Meldung konnte nicht gespeichert werden. Bitte versuchen Sie es erneut.");
+    return twiml(
+      `Verstanden — *${messageText}*.\n\n` +
+      `🗓 *Seit wann* besteht das Problem? (z.B. seit gestern, seit einer Woche)`
+    );
   }
 
-  console.log(
-    `[twilio-webhook] Schadensbericht erstellt: ${report.id} für ${profile.full_name ?? phoneNumber}`
-  );
+  // ══════════════════════════════════════════════════════════════════════════
+  // SCHRITT 3 — Zeitraum empfangen
+  // ══════════════════════════════════════════════════════════════════════════
+  if (session.step === "awaiting_duration") {
+    await adminSupabase
+      .from("whatsapp_sessions")
+      .update({
+        step: "awaiting_urgency" as ConversationStep,
+        collected_data: { ...data, duration: messageText } satisfies SessionData,
+      })
+      .eq("phone_number", phoneNumber);
 
-  // 8. Bestätigung an Mieter senden
-  return twimlResponse(
-    `✅ Danke ${profile.full_name?.split(" ")[0] ?? ""}! Ihre Schadensmeldung wurde registriert. Wir werden uns so schnell wie möglich darum kümmern und Sie über WhatsApp informieren.`
-  );
+    return twiml(
+      `Notiert — seit *${messageText}*.\n\n` +
+      `🚨 Wie *dringend* ist das Problem?\n\n` +
+      `1️⃣ Kann warten (> 2 Wochen)\n` +
+      `2️⃣ Bald erledigen (< 1 Woche)\n` +
+      `3️⃣ Dringend (< 48h)\n` +
+      `4️⃣ Notfall – sofort!\n\n` +
+      `Bitte antworten Sie mit 1, 2, 3 oder 4.`
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SCHRITT 4 — Dringlichkeit empfangen → Schadensbericht erstellen
+  // ══════════════════════════════════════════════════════════════════════════
+  if (session.step === "awaiting_urgency") {
+    const priority = parsePriority(messageText);
+
+    if (!priority) {
+      return twiml("Bitte antworten Sie mit einer Zahl zwischen 1 und 4.");
+    }
+
+    // Vollständige Beschreibung zusammenbauen
+    const fullDescription = [
+      data.description,
+      data.location ? `Ort: ${data.location}` : null,
+      data.duration ? `Besteht seit: ${data.duration}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // Schadensbericht erstellen
+    const { error: reportError } = await adminSupabase
+      .from("damage_reports")
+      .insert({
+        title: data.description.slice(0, 100),
+        description: fullDescription,
+        location_in_property: data.location ?? null,
+        priority,
+        status: "received",
+        channel: "whatsapp",
+        property_id: session.property_id,
+        tenant_id: session.tenant_id,
+      });
+
+    // Session löschen
+    await adminSupabase
+      .from("whatsapp_sessions")
+      .delete()
+      .eq("phone_number", phoneNumber);
+
+    if (reportError) {
+      console.error("[twilio-webhook] damage_report INSERT fehlgeschlagen:", reportError);
+      return twiml("Ihre Meldung konnte leider nicht gespeichert werden. Bitte versuchen Sie es erneut.");
+    }
+
+    const urgencyLabels: Record<string, string> = {
+      low: "Kann warten",
+      medium: "Bald erledigen",
+      high: "Dringend",
+      urgent: "🚨 Notfall",
+    };
+
+    return twiml(
+      `✅ Ihre Schadensmeldung wurde erfolgreich registriert!\n\n` +
+      `📋 *Schaden:* ${data.description}\n` +
+      `📍 *Ort:* ${data.location ?? "–"}\n` +
+      `🗓 *Seit:* ${data.duration ?? "–"}\n` +
+      `🚨 *Dringlichkeit:* ${urgencyLabels[priority]}\n\n` +
+      `Wir werden uns so schnell wie möglich darum kümmern und Sie hier via WhatsApp informieren.`
+    );
+  }
+
+  return twiml("Etwas ist schiefgelaufen. Bitte starten Sie neu mit einer neuen Nachricht.");
 }
