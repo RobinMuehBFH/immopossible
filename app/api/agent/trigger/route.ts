@@ -2,26 +2,19 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runDamageReportAgent } from "@/lib/agents/run";
-import { createClient } from "@/lib/supabase/server";
+import { createAuthenticatedSupabaseClient } from "@/lib/supabase/server";
+import { auth } from "@/lib/auth/config";
 
 export async function POST(request: NextRequest) {
-  // Auth check — only authenticated property managers / admins can trigger
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Auth check via NextAuth session
+  const session = await auth();
 
-  if (!user) {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile || !["property_manager", "admin"].includes(profile.role)) {
+  const role = session.user.role;
+  if (!role || !["property_manager", "admin"].includes(role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -37,6 +30,9 @@ export async function POST(request: NextRequest) {
   if (!reportId) {
     return NextResponse.json({ error: "reportId fehlt" }, { status: 400 });
   }
+
+  // Use the Supabase access token from the NextAuth session
+  const supabase = createAuthenticatedSupabaseClient(session.supabaseAccessToken!);
 
   // Verify report exists and belongs to this manager's scope
   const { data: report, error: reportError } = await supabase
