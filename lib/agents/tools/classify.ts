@@ -117,7 +117,13 @@ export async function classifyNode(
     `[classify] reportId=${state.reportId} → category=${result.category}, priority=${result.priority}`
   );
 
-  // 4. State zurückgeben — nur die Felder die dieses Tool setzt
+  // 4. Kategorie und Priorität in damage_reports zurückschreiben
+  await adminSupabase
+    .from("damage_reports")
+    .update({ priority: result.priority, damage_category: result.category })
+    .eq("id", state.reportId);
+
+  // 5. State zurückgeben — nur die Felder die dieses Tool setzt
   return {
     category: result.category as DamageCategory,
     priority: result.priority as PriorityLevel,

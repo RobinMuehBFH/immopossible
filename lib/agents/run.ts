@@ -374,18 +374,58 @@ export async function resumeDamageReportAgent(
  * Erstellt eine lesbare Zusammenfassung des Agent-Runs für das Dashboard.
  */
 function buildOutputSummary(state: AgentState): string {
-  const parts: string[] = [];
+  const categoryLabels: Record<string, string> = {
+    plumbing:     "Sanitär-Problem",
+    electrical:   "Elektroproblem",
+    heating:      "Heizungsproblem",
+    structural:   "Bauschäden",
+    appliance:    "Gerätedefekt",
+    pest_control: "Schädlingsbefall",
+    other:        "Sonstiges Problem",
+  };
+  const priorityLabels: Record<string, string> = {
+    low:    "niedrig",
+    medium: "mittel",
+    high:   "hoch",
+    urgent: "dringend",
+  };
 
-  if (state.category)        parts.push(`Kategorie: ${state.category}`);
-  if (state.priority)        parts.push(`Priorität: ${state.priority}`);
-  if (state.estimatedCostChf !== null)
-                             parts.push(`Kostenschätzung: CHF ${state.estimatedCostChf}`);
-  if (state.selectedCraftsman)
-                             parts.push(`Handwerker: ${state.selectedCraftsman.name}`);
-  if (state.bookingId)       parts.push(`Buchung erstellt: ${state.bookingId}`);
-  if (state.approvalStatus)  parts.push(`Genehmigung: ${state.approvalStatus}`);
+  const sentences: string[] = [];
 
-  return parts.length > 0
-    ? parts.join(" | ")
-    : "Agent-Run abgeschlossen ohne Details";
+  if (state.category || state.priority) {
+    const cat = state.category ? (categoryLabels[state.category] ?? state.category) : null;
+    const pri = state.priority ? (priorityLabels[state.priority] ?? state.priority) : null;
+    if (cat && pri) {
+      sentences.push(`Der Agent hat den Schaden als ${cat} mit Priorität „${pri}" eingestuft.`);
+    } else if (cat) {
+      sentences.push(`Der Agent hat den Schaden als ${cat} eingestuft.`);
+    }
+  }
+
+  if (state.damageSummary) {
+    sentences.push(state.damageSummary);
+  }
+
+  if (state.selectedCraftsman) {
+    const name = state.selectedCraftsman.name;
+    const company = state.selectedCraftsman.company ? ` (${state.selectedCraftsman.company})` : "";
+    const cost = state.estimatedCostChf !== null ? ` für CHF ${state.estimatedCostChf}` : "";
+    sentences.push(`${name}${company} wurde als Handwerker ausgewählt${cost}.`);
+  }
+
+  if (state.bookingId) {
+    sentences.push("Eine Buchungsanfrage wurde erfolgreich erstellt.");
+  }
+
+  if (state.approvalStatus === "approved") {
+    sentences.push("Der Einsatz wurde durch den Manager genehmigt.");
+  } else if (state.approvalStatus === "rejected") {
+    sentences.push("Der Einsatz wurde durch den Manager abgelehnt.");
+  } else if (state.status === "waiting_for_human") {
+    sentences.push("Der Agent wartet auf die Genehmigung durch einen Manager.");
+  }
+
+  return sentences.length > 0
+    ? sentences.join(" ")
+    : "Agent-Run abgeschlossen.";
 }

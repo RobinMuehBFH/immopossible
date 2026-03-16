@@ -8,20 +8,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import {
-  Bot,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Zap,
-  ExternalLink,
-} from 'lucide-react'
+import { Bot, Clock, CheckCircle, XCircle, Loader2, Zap, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import type { AgentRun } from '@/lib/types/database.types'
+import { AgentRunDetail } from '@/components/agent-run-detail'
+import type { AgentStep } from '@/components/agent-run-detail'
 
 interface AgentRunWithReport extends AgentRun {
   damage_report?: {
@@ -30,26 +22,6 @@ interface AgentRunWithReport extends AgentRun {
     tenant?: { full_name: string | null } | null
     property?: { name: string } | null
   } | null
-}
-
-interface AgentStep {
-  tool: string
-  input?: Record<string, unknown>
-  output?: Record<string, unknown>
-  timestamp?: string
-  durationMs?: number
-  error?: string
-}
-
-const toolLabels: Record<string, string> = {
-  classify_damage_report:  'Schadensbericht klassifizieren',
-  find_craftsman:          'Handwerker suchen',
-  estimate_cost:           'Kosten schätzen',
-  request_human_approval:  'Manager-Genehmigung anfordern',
-  book_craftsman:          'Handwerker buchen',
-  send_notification:       'Benachrichtigung senden',
-  update_report_status:    'Status aktualisieren',
-  check_erp_mock:          'ERP-System prüfen',
 }
 
 interface AgentRunsTableProps {
@@ -73,7 +45,6 @@ const statusColors: Record<string, string> = {
 export function AgentRunsTable({ initialRuns }: AgentRunsTableProps) {
   const [runs, setRuns] = useState<AgentRunWithReport[]>(initialRuns)
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const supabase = createClient()
@@ -135,18 +106,6 @@ export function AgentRunsTable({ initialRuns }: AgentRunsTableProps) {
     if (!steps) return []
     if (Array.isArray(steps)) return steps as AgentStep[]
     return []
-  }
-
-  const toggleStep = (stepKey: string) => {
-    setExpandedSteps((prev) => {
-      const next = new Set(prev)
-      if (next.has(stepKey)) {
-        next.delete(stepKey)
-      } else {
-        next.add(stepKey)
-      }
-      return next
-    })
   }
 
   return (
@@ -219,144 +178,20 @@ export function AgentRunsTable({ initialRuns }: AgentRunsTableProps) {
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                       <div className="border-t border-[#E2E8F0] dark:border-[#4A5568] p-4 space-y-4">
-                        {/* Report Link */}
                         {run.damage_report && (
                           <Link
                             href={`/dashboard/reports/${run.damage_report.id}`}
                             className="inline-flex items-center gap-1 text-sm text-[#4FD1C5] hover:underline"
                           >
-                            View damage report
+                            Schadensbericht anzeigen
                             <ExternalLink className="h-3 w-3" />
                           </Link>
                         )}
-
-                        {/* Output Summary */}
-                        {run.output_summary && (
-                          <div className="rounded-lg bg-success/5 p-3">
-                            <p className="text-sm font-medium text-success mb-1">
-                              Output Summary
-                            </p>
-                            <p className="text-sm text-[#2D3748] dark:text-[#E2E8F0]">
-                              {run.output_summary}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Error Message */}
-                        {run.error_message && (
-                          <div className="rounded-lg bg-destructive/5 p-3">
-                            <p className="text-sm font-medium text-destructive mb-1">
-                              Error
-                            </p>
-                            <p className="text-sm text-[#2D3748] dark:text-[#E2E8F0]">
-                              {run.error_message}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Steps */}
-                        {steps.length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium text-[#A0AEC0] mb-2">
-                              Steps ({steps.length})
-                            </p>
-                            <div className="space-y-2">
-                              {steps.map((step, index) => {
-                                const stepKey = `${run.id}-${index}`
-                                const isStepExpanded = expandedSteps.has(stepKey)
-
-                                return (
-                                  <Collapsible
-                                    key={stepKey}
-                                    open={isStepExpanded}
-                                    onOpenChange={() => toggleStep(stepKey)}
-                                  >
-                                    <div className="rounded-lg border border-[#E2E8F0] dark:border-[#4A5568]">
-                                      <CollapsibleTrigger asChild>
-                                        <button className="w-full p-3 flex items-center justify-between hover:bg-[#F7FAFC] dark:hover:bg-[#1A202C] transition-colors text-left">
-                                          <div className="flex items-center gap-2">
-                                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4FD1C5]/10 text-xs font-bold text-[#4FD1C5]">
-                                              {index + 1}
-                                            </span>
-                                            <div>
-                                              <span className="text-sm font-semibold text-[#2D3748] dark:text-white">
-                                                {toolLabels[step.tool] ?? step.tool?.replace(/_/g, ' ')}
-                                              </span>
-                                              <span className="ml-2 font-mono text-xs text-[#A0AEC0]">
-                                                {step.tool}
-                                              </span>
-                                            </div>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            {step.error ? (
-                                              <XCircle className="h-4 w-4 text-destructive" />
-                                            ) : step.output ? (
-                                              <CheckCircle className="h-4 w-4 text-success" />
-                                            ) : null}
-                                            {step.durationMs && (
-                                              <span className="text-xs text-[#A0AEC0]">
-                                                {formatDuration(step.durationMs)}
-                                              </span>
-                                            )}
-                                            {isStepExpanded ? (
-                                              <ChevronDown className="h-4 w-4 text-[#A0AEC0]" />
-                                            ) : (
-                                              <ChevronRight className="h-4 w-4 text-[#A0AEC0]" />
-                                            )}
-                                          </div>
-                                        </button>
-                                      </CollapsibleTrigger>
-                                      <CollapsibleContent>
-                                        <div className="border-t border-[#E2E8F0] dark:border-[#4A5568] p-3 space-y-3">
-                                          {step.input &&
-                                            Object.keys(step.input).length > 0 && (
-                                              <div>
-                                                <p className="text-xs font-medium text-[#A0AEC0] mb-1">
-                                                  Input
-                                                </p>
-                                                <pre className="text-xs bg-[#F7FAFC] dark:bg-[#1A202C] p-2 rounded-lg overflow-x-auto">
-                                                  {JSON.stringify(step.input, null, 2)}
-                                                </pre>
-                                              </div>
-                                            )}
-                                          {step.output &&
-                                            Object.keys(step.output).length > 0 && (
-                                              <div>
-                                                <p className="text-xs font-medium text-[#A0AEC0] mb-1">
-                                                  Output
-                                                </p>
-                                                <pre className="text-xs bg-[#F7FAFC] dark:bg-[#1A202C] p-2 rounded-lg overflow-x-auto">
-                                                  {JSON.stringify(step.output, null, 2)}
-                                                </pre>
-                                              </div>
-                                            )}
-                                          {step.error && (
-                                            <div>
-                                              <p className="text-xs font-medium text-destructive mb-1">
-                                                Error
-                                              </p>
-                                              <pre className="text-xs bg-destructive/5 p-2 rounded-lg overflow-x-auto text-destructive">
-                                                {step.error}
-                                              </pre>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </CollapsibleContent>
-                                    </div>
-                                  </Collapsible>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {steps.length === 0 &&
-                          !run.output_summary &&
-                          !run.error_message && (
-                            <p className="text-sm text-[#A0AEC0] text-center py-2">
-                              No details available
-                            </p>
-                          )}
+                        <AgentRunDetail
+                          steps={steps}
+                          outputSummary={run.output_summary}
+                          errorMessage={run.error_message}
+                        />
                       </div>
                     </CollapsibleContent>
                   </div>

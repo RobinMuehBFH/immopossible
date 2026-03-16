@@ -83,9 +83,6 @@ export function TriggerAgentButton({ reportId, reportStatus }: TriggerAgentButto
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {blocked && !loading && (
-        <p className="text-xs text-[#A0AEC0]">Status: {reportStatus}</p>
-      )}
     </div>
   )
 }
