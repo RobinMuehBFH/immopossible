@@ -61,8 +61,12 @@ export async function checkErpNode(
     .eq("property_id", report.property_id)
     .maybeSingle();
 
-  // 6. Bevorzugten Notification-Kanal aus dem Intake-Channel ableiten
-  const tenantChannel = deriveNotificationChannel(report.channel);
+  // 6. Bevorzugten Notification-Kanal bestimmen:
+  //    Hat der Mieter eine Telefonnummer → WhatsApp (unabhängig vom Intake-Kanal)
+  //    Sonst: aus dem Intake-Kanal ableiten
+  const tenantChannel = tenantProfile.phone
+    ? "whatsapp"
+    : deriveNotificationChannel(report.channel);
 
   // 7. ErpContext zusammenbauen
   const erpContext: ErpContext = {

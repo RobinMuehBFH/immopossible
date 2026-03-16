@@ -2,6 +2,7 @@
 
 import { adminSupabase } from "@/lib/supabase/admin";
 import { AgentState, AgentStep } from "@/lib/agents/state";
+import { sendWhatsApp } from "@/lib/twilio/send-whatsapp";
 
 // ─── Nachrichtenvorlagen ──────────────────────────────────────────────────────
 
@@ -83,12 +84,13 @@ export async function sendNotificationNode(
   const tenantMessage = buildTenantMessage(state, scheduledDisplay);
   const managerMessage = buildManagerMessage(state, scheduledDisplay);
 
-  // 1. Mieter-Notification schreiben
+  // 1. Mieter-Notification in DB schreiben
   const { data: tenantNotification, error: tenantError } = await adminSupabase
     .from("notifications")
     .insert({
       damage_report_id: state.reportId,
       recipient_id: state.erpContext.tenantId,
+      recipient_identifier: state.erpContext.tenantPhone ?? null,
       channel: state.erpContext.tenantChannel,
       body: tenantMessage,
     })
@@ -99,7 +101,36 @@ export async function sendNotificationNode(
     throw new Error(`notifications INSERT (tenant) fehlgeschlagen: ${tenantError?.message}`);
   }
 
-  // 2. Property Manager In-App Notification schreiben
+  // 2. WhatsApp senden wenn Kanal = whatsapp und Telefonnummer vorhanden
+  if (state.erpContext.tenantChannel === "whatsapp" && state.erpContext.tenantPhone) {
+    try {
+      const result = await sendWhatsApp(state.erpContext.tenantPhone, tenantMessage);
+
+      await adminSupabase
+        .from("notifications")
+        .update({
+          sent_at: new Date().toISOString(),
+          external_id: result.sid,
+        })
+        .eq("id", tenantNotification.id);
+
+      console.log(`[send-notification] WhatsApp gesendet → ${state.erpContext.tenantPhone} | SID: ${result.sid}`);
+    } catch (twilioError) {
+      const errMsg = twilioError instanceof Error ? twilioError.message : String(twilioError);
+      console.error(`[send-notification] WhatsApp fehlgeschlagen: ${errMsg}`);
+
+      await adminSupabase
+        .from("notifications")
+        .update({
+          failed_at: new Date().toISOString(),
+          error_message: errMsg,
+        })
+        .eq("id", tenantNotification.id);
+      // Nicht werfen — Buchung ist bereits erfolgt, Notification ist nicht-kritisch
+    }
+  }
+
+  // 3. Property Manager In-App Notification schreiben
   await adminSupabase
     .from("notifications")
     .insert({
@@ -108,7 +139,7 @@ export async function sendNotificationNode(
       body: managerMessage,
     });
 
-  // 3. Schritt loggen
+  // 4. Schritt loggen
   const step: AgentStep = {
     tool: "send_notification",
     input: {
