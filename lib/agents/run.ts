@@ -167,7 +167,7 @@ export async function resumeDamageReportAgent(
   }
 
   const reportId = agentRun.damage_report_id;
-  const existingSteps = (agentRun.steps_taken as AgentStep[]) || [];
+  const existingSteps = (agentRun.steps_taken as unknown as AgentStep[]) || [];
 
   // 2. approval_request laden — enthält Craftsman-ID, Kosten, Kontext
   const { data: approvalRequest, error: approvalError } = await adminSupabase
